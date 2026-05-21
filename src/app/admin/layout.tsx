@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import SidebarNav from "@/components/admin/sidebar-nav";
+import SignOutButton from "@/components/admin/sign-out-button";
 import type { UserRole } from "@/lib/types/enums";
 
 const ALLOWED_ROLES: UserRole[] = ["super_admin", "admin", "operator"];
@@ -14,13 +16,11 @@ export default async function AdminLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect("/login");
-  }
+  if (!user) redirect("/login");
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role, full_name, client_id")
+    .select("role, full_name")
     .eq("id", user.id)
     .single();
 
@@ -29,17 +29,33 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <nav className="border-b border-zinc-200 bg-white px-6 py-3 flex items-center justify-between">
-        <span className="font-semibold text-zinc-900">KOC CityAds</span>
-        <div className="flex items-center gap-4 text-sm text-zinc-600">
-          <span>{profile.full_name}</span>
-          <span className="text-xs bg-zinc-100 px-2 py-0.5 rounded-full capitalize">
-            {profile.role.replace("_", " ")}
-          </span>
+    <div className="flex h-screen bg-zinc-50 overflow-hidden">
+      {/* Sidebar */}
+      <aside className="w-60 bg-white border-r border-zinc-200 flex flex-col flex-shrink-0">
+        <div className="px-4 py-4 border-b border-zinc-200">
+          <h1 className="font-bold text-zinc-900">KOC CityAds</h1>
+          <p className="text-xs text-zinc-400 mt-0.5">Admin Portal</p>
         </div>
-      </nav>
-      <main className="p-6">{children}</main>
+
+        <SidebarNav role={profile.role} />
+
+        <div className="px-3 py-3 border-t border-zinc-200 mt-auto">
+          <div className="px-2 mb-2">
+            <p className="text-sm font-medium text-zinc-900 truncate">
+              {profile.full_name}
+            </p>
+            <p className="text-xs text-zinc-500 capitalize">
+              {profile.role.replace("_", " ")}
+            </p>
+          </div>
+          <SignOutButton />
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="flex-1 overflow-auto">
+        <div className="p-6 max-w-screen-xl">{children}</div>
+      </main>
     </div>
   );
 }
