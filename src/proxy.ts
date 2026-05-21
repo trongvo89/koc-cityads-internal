@@ -4,7 +4,7 @@ import type { UserRole } from "@/lib/types/enums";
 
 const ADMIN_ROLES: UserRole[] = ["super_admin", "admin", "operator"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const { supabaseResponse, user, supabase } = await updateSession(request);
 
