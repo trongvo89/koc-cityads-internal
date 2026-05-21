@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Copy, Check, MessageSquare, CheckCheck } from "lucide-react";
+import { Copy, Check, MessageSquare, CheckCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { markAsReminded } from "@/lib/actions/campaigns";
+import { markAsReminded, renewMagicLink } from "@/lib/actions/campaigns";
 import type { ReminderKoc } from "@/lib/actions/campaigns";
 import type { NotificationType } from "@/lib/types/enums";
 
@@ -79,6 +79,7 @@ function ReminderCard({
   const [editedMessage, setEditedMessage] = useState(message);
   const [copied, setCopied] = useState(false);
   const [reminded, setReminded] = useState(false);
+  const [renewed, setRenewed] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const link = `${APP_URL}/koc/${koc.magic_link_token}`;
@@ -95,6 +96,13 @@ function ReminderCard({
     if (link) {
       window.open(`https://zalo.me/?message=${encodeURIComponent(editedMessage)}`, "_blank");
     }
+  }
+
+  function handleRenewLink() {
+    startTransition(async () => {
+      const result = await renewMagicLink(koc.campaign_koc_id, campaignId);
+      if (result.success) setRenewed(true);
+    });
   }
 
   function handleMarkReminded() {
@@ -134,9 +142,14 @@ function ReminderCard({
                 Đã nhắc
               </Badge>
             )}
-            {isExpired && (
+            {isExpired && !renewed && (
               <Badge variant="destructive" className="text-xs">
                 Link hết hạn
+              </Badge>
+            )}
+            {renewed && (
+              <Badge variant="success" className="text-xs">
+                Đã gia hạn
               </Badge>
             )}
           </div>
@@ -161,6 +174,22 @@ function ReminderCard({
         rows={6}
         className="text-sm font-mono resize-none"
       />
+
+      {isExpired && !renewed && (
+        <div className="mt-3 rounded-md bg-orange-50 border border-orange-200 px-3 py-2 flex items-center justify-between gap-3">
+          <p className="text-xs text-orange-700">Link đã hết hạn — KOC sẽ không mở được.</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleRenewLink}
+            disabled={isPending}
+            className="gap-1.5 border-orange-300 text-orange-700 hover:bg-orange-50 flex-shrink-0"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Gia hạn 7 ngày
+          </Button>
+        </div>
+      )}
 
       <div className="flex items-center gap-2 mt-3">
         <Button size="sm" variant="outline" onClick={handleCopy} className="gap-1.5">

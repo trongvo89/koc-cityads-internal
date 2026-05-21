@@ -36,6 +36,7 @@ export type CampaignKocRow = {
   receiver_address: string | null;
   video_url: string | null;
   internal_note: string | null;
+  revision_note: string | null;
   deadline_date: string | null;
 };
 
@@ -121,7 +122,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: kocs, error: ke } = await supabase
     .from("campaign_kocs")
     .select(
-      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_address, video_url, internal_note, deadline_date, kocs(name, category)"
+      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_address, video_url, internal_note, revision_note, deadline_date, kocs(name, category)"
     )
     .eq("campaign_id", id)
     .order("created_at", { ascending: true });
@@ -157,6 +158,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
         receiver_address: k.receiver_address,
         video_url: k.video_url,
         internal_note: k.internal_note,
+        revision_note: k.revision_note,
         deadline_date: k.deadline_date,
       })),
     },
@@ -310,6 +312,7 @@ export async function updateCampaignKocStatus(
     operation_status?: OperationStatus;
     sample_status?: SampleStatus;
     internal_note?: string;
+    revision_note?: string | null;
     deadline_date?: string | null;
     shipping_code?: string | null;
     shipping_provider?: string | null;
@@ -329,6 +332,26 @@ export async function updateCampaignKocStatus(
 }
 
 // ─── Reminder Actions ─────────────────────────────────────────────────────────
+
+export async function renewMagicLink(
+  campaignKocId: string,
+  campaignId: string
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const newToken = crypto.randomUUID();
+  const newExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { error } = await supabase
+    .from("campaign_kocs")
+    .update({ magic_link_token: newToken, magic_link_expires_at: newExpiry })
+    .eq("campaign_koc_id", campaignKocId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  revalidatePath(`/admin/campaigns/${campaignId}/reminders`);
+  return { success: true, data: undefined };
+}
 
 export async function markAsReminded(
   campaignKocId: string,

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Trash2, MoreHorizontal, ExternalLink } from "lucide-react";
+import { Plus, Trash2, MoreHorizontal, ExternalLink, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -31,6 +33,7 @@ import {
   addKocToCampaign,
   removeKocFromCampaign,
   updateCampaignKocStatus,
+  renewMagicLink,
 } from "@/lib/actions/campaigns";
 import type { CampaignDetail, CampaignKocRow } from "@/lib/actions/campaigns";
 import type { OperationStatus, SampleStatus } from "@/lib/types/enums";
@@ -103,11 +106,17 @@ function KocActionMenu({
   koc,
   campaignId,
   onAction,
+  onNeedRevision,
+  onRenewLink,
 }: {
   koc: CampaignKocRow;
   campaignId: string;
   onAction: (id: string, updates: { operation_status?: OperationStatus; sample_status?: SampleStatus }) => void;
+  onNeedRevision: (id: string) => void;
+  onRenewLink: (id: string) => void;
 }) {
+  const isExpired = new Date(koc.magic_link_expires_at) < new Date();
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -115,7 +124,7 @@ function KocActionMenu({
           <MoreHorizontal className="h-3.5 w-3.5" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuLabel>Cập nhật trạng thái</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {koc.operation_status === "draft" && (
@@ -196,11 +205,7 @@ function KocActionMenu({
             >
               Duyệt video
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() =>
-                onAction(koc.campaign_koc_id, { operation_status: "need_revision" })
-              }
-            >
+            <DropdownMenuItem onClick={() => onNeedRevision(koc.campaign_koc_id)}>
               Cần sửa video
             </DropdownMenuItem>
           </>
@@ -212,6 +217,14 @@ function KocActionMenu({
             Hoàn thành
           </DropdownMenuItem>
         )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={() => onRenewLink(koc.campaign_koc_id)}
+          className={isExpired ? "text-orange-600" : ""}
+        >
+          <RefreshCw className="h-3.5 w-3.5 mr-2" />
+          {isExpired ? "Gia hạn link (đã hết hạn)" : "Gia hạn magic link"}
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-red-600"
@@ -239,6 +252,10 @@ export default function KocBoard({
   const [filter, setFilter] = useState<string>("all");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  // Revision note dialog
+  const [revisionTargetId, setRevisionTargetId] = useState<string | null>(null);
+  const [revisionNote, setRevisionNote] = useState("");
 
   const assignedKocIds = new Set(campaign.kocs.map((k) => k.koc_id));
   const availableKocs = allKocs.filter((k) => !assignedKocIds.has(k.koc_id));
@@ -275,6 +292,35 @@ export default function KocBoard({
         campaign.campaign_id,
         updates
       );
+      if (!result.success) setError(result.error);
+    });
+  }
+
+  function handleConfirmRevision() {
+    if (!revisionTargetId) return;
+    setError(null);
+    startTransition(async () => {
+      const result = await updateCampaignKocStatus(
+        revisionTargetId,
+        campaign.campaign_id,
+        {
+          operation_status: "need_revision",
+          revision_note: revisionNote.trim() || null,
+        }
+      );
+      if (result.success) {
+        setRevisionTargetId(null);
+        setRevisionNote("");
+      } else {
+        setError(result.error);
+      }
+    });
+  }
+
+  function handleRenewLink(campaignKocId: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await renewMagicLink(campaignKocId, campaign.campaign_id);
       if (!result.success) setError(result.error);
     });
   }
@@ -391,89 +437,151 @@ export default function KocBoard({
                 </tr>
               </thead>
               <tbody>
-                {filteredKocs.map((koc) => (
-                  <tr
-                    key={koc.campaign_koc_id}
-                    className={`border-b border-zinc-100 last:border-0 transition-colors ${
-                      selectedIds.has(koc.campaign_koc_id) ? "bg-blue-50/50" : "hover:bg-zinc-50"
-                    } ${isPending ? "opacity-60" : ""}`}
-                  >
-                    <td className="px-3 py-2.5">
-                      <Checkbox
-                        checked={selectedIds.has(koc.campaign_koc_id)}
-                        onCheckedChange={() => toggleSelect(koc.campaign_koc_id)}
-                      />
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <div className="font-medium text-zinc-900 leading-tight">
-                        {koc.koc_name}
-                      </div>
-                      {koc.koc_category && koc.koc_category.length > 0 && (
-                        <div className="text-xs text-zinc-400 mt-0.5">
-                          {koc.koc_category.join(", ")}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <StatusBadge map={OP_STATUS} value={koc.operation_status} />
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex flex-col gap-0.5">
-                        <StatusBadge map={ADDR_STATUS} value={koc.address_status} />
-                        {koc.receiver_name && (
-                          <span className="text-xs text-zinc-400 leading-tight">
-                            {koc.receiver_name}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <StatusBadge map={SAMPLE_STATUS} value={koc.sample_status} />
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <div className="flex flex-col gap-0.5">
-                        <StatusBadge map={CONTENT_STATUS} value={koc.content_status} />
-                        {koc.video_url && (
-                          <a
-                            href={koc.video_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-0.5"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            Xem video
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <StatusBadge map={CLIENT_STATUS} value={koc.client_approval_status} />
-                    </td>
-                    <td className="px-3 py-2.5 text-right">
-                      <div className="flex items-center gap-1 justify-end">
-                        <KocActionMenu
-                          koc={koc}
-                          campaignId={campaign.campaign_id}
-                          onAction={handleStatusUpdate}
+                {filteredKocs.map((koc) => {
+                  const isExpired = new Date(koc.magic_link_expires_at) < new Date();
+                  return (
+                    <tr
+                      key={koc.campaign_koc_id}
+                      className={`border-b border-zinc-100 last:border-0 transition-colors ${
+                        selectedIds.has(koc.campaign_koc_id) ? "bg-blue-50/50" : "hover:bg-zinc-50"
+                      } ${isPending ? "opacity-60" : ""}`}
+                    >
+                      <td className="px-3 py-2.5">
+                        <Checkbox
+                          checked={selectedIds.has(koc.campaign_koc_id)}
+                          onCheckedChange={() => toggleSelect(koc.campaign_koc_id)}
                         />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-zinc-400 hover:text-red-600"
-                          onClick={() => handleRemove(koc.campaign_koc_id)}
-                          title="Xóa khỏi campaign"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-medium text-zinc-900 leading-tight">
+                          {koc.koc_name}
+                        </div>
+                        {koc.koc_category && koc.koc_category.length > 0 && (
+                          <div className="text-xs text-zinc-400 mt-0.5">
+                            {koc.koc_category.join(", ")}
+                          </div>
+                        )}
+                        {isExpired && (
+                          <div className="text-xs text-orange-500 mt-0.5">Link hết hạn</div>
+                        )}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-col gap-0.5">
+                          <StatusBadge map={OP_STATUS} value={koc.operation_status} />
+                          {koc.operation_status === "need_revision" && koc.revision_note && (
+                            <span
+                              className="text-xs text-zinc-400 leading-tight max-w-[160px] truncate"
+                              title={koc.revision_note}
+                            >
+                              {koc.revision_note}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-col gap-0.5">
+                          <StatusBadge map={ADDR_STATUS} value={koc.address_status} />
+                          {koc.receiver_name && (
+                            <span className="text-xs text-zinc-400 leading-tight">
+                              {koc.receiver_name}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <StatusBadge map={SAMPLE_STATUS} value={koc.sample_status} />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex flex-col gap-0.5">
+                          <StatusBadge map={CONTENT_STATUS} value={koc.content_status} />
+                          {koc.video_url && (
+                            <a
+                              href={koc.video_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:underline flex items-center gap-0.5"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              Xem video
+                            </a>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <StatusBadge map={CLIENT_STATUS} value={koc.client_approval_status} />
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        <div className="flex items-center gap-1 justify-end">
+                          <KocActionMenu
+                            koc={koc}
+                            campaignId={campaign.campaign_id}
+                            onAction={handleStatusUpdate}
+                            onNeedRevision={setRevisionTargetId}
+                            onRenewLink={handleRenewLink}
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-zinc-400 hover:text-red-600"
+                            onClick={() => handleRemove(koc.campaign_koc_id)}
+                            title="Xóa khỏi campaign"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
       </div>
+
+      {/* Revision Note Dialog */}
+      <Dialog
+        open={revisionTargetId !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRevisionTargetId(null);
+            setRevisionNote("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Yêu cầu chỉnh sửa video</DialogTitle>
+          </DialogHeader>
+          <div className="py-2 space-y-1.5">
+            <Label htmlFor="revision-note">Nội dung yêu cầu chỉnh sửa</Label>
+            <Textarea
+              id="revision-note"
+              value={revisionNote}
+              onChange={(e) => setRevisionNote(e.target.value)}
+              placeholder="Mô tả cụ thể những gì cần chỉnh sửa (ánh sáng, caption, hashtag, v.v.)..."
+              rows={4}
+            />
+            <p className="text-xs text-zinc-400">
+              Nội dung này sẽ được hiển thị cho KOC khi họ mở link nộp lại video.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setRevisionTargetId(null);
+                setRevisionNote("");
+              }}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleConfirmRevision} disabled={isPending}>
+              {isPending ? "Đang lưu..." : "Xác nhận yêu cầu sửa"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add KOC Dialog */}
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
