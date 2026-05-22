@@ -33,7 +33,9 @@ export type CampaignKocRow = {
   magic_link_token: string;
   magic_link_expires_at: string;
   receiver_name: string | null;
+  receiver_phone: string | null;
   receiver_address: string | null;
+  receiver_province: string | null;
   video_url: string | null;
   internal_note: string | null;
   revision_note: string | null;
@@ -122,7 +124,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: kocs, error: ke } = await supabase
     .from("campaign_kocs")
     .select(
-      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_address, video_url, internal_note, revision_note, deadline_date, kocs(name, category)"
+      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, kocs(name, category)"
     )
     .eq("campaign_id", id)
     .order("created_at", { ascending: true });
@@ -155,7 +157,9 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
         magic_link_token: k.magic_link_token,
         magic_link_expires_at: k.magic_link_expires_at,
         receiver_name: k.receiver_name,
+        receiver_phone: k.receiver_phone,
         receiver_address: k.receiver_address,
+        receiver_province: k.receiver_province,
         video_url: k.video_url,
         internal_note: k.internal_note,
         revision_note: k.revision_note,
@@ -278,9 +282,27 @@ export async function addKocToCampaign(
   kocId: string
 ): Promise<ActionResult> {
   const supabase = await createClient();
+
+  // Pre-populate shipping address from KOC's saved defaults so admin can ship
+  // immediately after client approval without asking KOC to fill in again.
+  const { data: koc } = await supabase
+    .from("kocs")
+    .select("name, phone, default_address, location")
+    .eq("koc_id", kocId)
+    .single();
+
+  const hasAddress = !!koc?.default_address;
+
   const { error } = await supabase.from("campaign_kocs").insert({
     campaign_id: campaignId,
     koc_id: kocId,
+    ...(hasAddress && {
+      receiver_name: koc!.name,
+      receiver_phone: koc!.phone ?? null,
+      receiver_address: koc!.default_address!,
+      receiver_province: koc!.location ?? null,
+      address_status: "submitted",
+    }),
   });
 
   if (error) return { success: false, error: error.message };

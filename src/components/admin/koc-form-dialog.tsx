@@ -83,6 +83,7 @@ export default function KocFormDialog({
         follower: koc.follower ?? undefined,
         status: koc.status,
         category_raw: koc.category?.join(", ") ?? "",
+        default_address: koc.default_address ?? "",
       });
     } else {
       reset({ status: "active" });
@@ -183,6 +184,18 @@ export default function KocFormDialog({
                 placeholder="Beauty, Lifestyle, Food"
                 {...register("category_raw")}
               />
+            </div>
+
+            <div className="col-span-2 space-y-1.5">
+              <Label>Địa chỉ nhận hàng mặc định</Label>
+              <Textarea
+                rows={2}
+                placeholder="Số nhà, tên đường, phường/xã, quận/huyện, tỉnh/thành phố"
+                {...register("default_address")}
+              />
+              <p className="text-xs text-zinc-400">
+                Sẽ tự động điền khi thêm KOC vào campaign — admin có thể gửi hàng ngay sau khi client duyệt.
+              </p>
             </div>
 
             <div className="col-span-2 space-y-1.5">

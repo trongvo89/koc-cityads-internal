@@ -481,10 +481,15 @@ export default function KocBoard({
                       <td className="px-3 py-2.5">
                         <div className="flex flex-col gap-0.5">
                           <StatusBadge map={ADDR_STATUS} value={koc.address_status} />
-                          {koc.receiver_name && (
-                            <span className="text-xs text-zinc-400 leading-tight">
-                              {koc.receiver_name}
-                            </span>
+                          {koc.address_status === "submitted" && koc.receiver_name && (
+                            <div className="text-xs text-zinc-500 leading-tight space-y-0.5">
+                              <div className="font-medium text-zinc-700">{koc.receiver_name}</div>
+                              {koc.receiver_phone && <div>{koc.receiver_phone}</div>}
+                              {koc.receiver_address && (
+                                <div className="max-w-[180px] break-words">{koc.receiver_address}</div>
+                              )}
+                              {koc.receiver_province && <div className="text-zinc-400">{koc.receiver_province}</div>}
+                            </div>
                           )}
                         </div>
                       </td>

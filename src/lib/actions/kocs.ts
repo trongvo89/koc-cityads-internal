@@ -17,6 +17,7 @@ export type KocListItem = {
   location: string | null;
   tiktok_url: string | null;
   instagram_url: string | null;
+  default_address: string | null;
   active_campaign_count: number;
 };
 
@@ -27,7 +28,7 @@ export async function getKocs(): Promise<ActionResult<KocListItem[]>> {
     supabase
       .from("kocs")
       .select(
-        "koc_id, name, category, phone, zalo, status, follower, location, tiktok_url, instagram_url"
+        "koc_id, name, category, phone, zalo, status, follower, location, tiktok_url, instagram_url, default_address"
       )
       .order("name"),
     supabase.from("koc_active_campaign_counts").select("koc_id, active_campaign_count"),
@@ -52,7 +53,7 @@ export async function getKocById(kocId: string): Promise<ActionResult<KocListIte
   const { data, error } = await supabase
     .from("kocs")
     .select(
-      "koc_id, name, category, phone, zalo, status, follower, location, tiktok_url, instagram_url"
+      "koc_id, name, category, phone, zalo, status, follower, location, tiktok_url, instagram_url, default_address"
     )
     .eq("koc_id", kocId)
     .single();
