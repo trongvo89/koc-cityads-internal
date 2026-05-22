@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo, useEffect } from "react";
 import {
   Plus, Trash2, MoreHorizontal, ExternalLink, RefreshCw,
-  Search, Send, Copy, Check, CheckCheck, MapPin,
+  Search, Send, Copy, Check, CheckCheck, MapPin, Star,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -1119,7 +1119,28 @@ export default function KocBoard({
                         </div>
                       </td>
                       <td className="px-3 py-2.5">
-                        <StatusBadge map={CLIENT_STATUS} value={koc.client_approval_status} />
+                        <div className="flex flex-col gap-1">
+                          <StatusBadge map={CLIENT_STATUS} value={koc.client_approval_status} />
+                          {koc.client_quality_rating != null && (
+                            <div className="flex items-center gap-0.5" title={`Đánh giá: ${koc.client_quality_rating}/5 sao`}>
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-3 w-3 ${i < koc.client_quality_rating! ? "fill-yellow-400 text-yellow-400" : "text-zinc-300"}`}
+                                />
+                              ))}
+                              <span className="text-xs text-zinc-400 ml-0.5">{koc.client_quality_rating}/5</span>
+                            </div>
+                          )}
+                          {koc.client_video_feedback && (
+                            <span
+                              className="text-xs text-zinc-500 leading-tight max-w-[180px] truncate"
+                              title={koc.client_video_feedback}
+                            >
+                              {koc.client_video_feedback}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <div className="flex items-center gap-1 justify-end">

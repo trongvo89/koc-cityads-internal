@@ -44,6 +44,9 @@ export type CampaignKocRow = {
   internal_note: string | null;
   revision_note: string | null;
   deadline_date: string | null;
+  client_video_feedback: string | null;
+  client_video_feedback_at: string | null;
+  client_quality_rating: number | null;
 };
 
 export type CampaignDetail = {
@@ -132,7 +135,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: kocs, error: ke } = await supabase
     .from("campaign_kocs")
     .select(
-      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, kocs(name, category, phone, zalo)"
+      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, client_video_feedback, client_video_feedback_at, client_quality_rating, kocs(name, category, phone, zalo)"
     )
     .eq("campaign_id", id)
     .order("created_at", { ascending: true });
@@ -175,6 +178,9 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
         internal_note: k.internal_note,
         revision_note: k.revision_note,
         deadline_date: k.deadline_date,
+        client_video_feedback: k.client_video_feedback,
+        client_video_feedback_at: k.client_video_feedback_at,
+        client_quality_rating: k.client_quality_rating,
         };
       }),
     },
