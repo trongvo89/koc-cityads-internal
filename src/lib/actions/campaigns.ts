@@ -17,6 +17,7 @@ export type CampaignListItem = {
   koc_count: number;
   start_date: string | null;
   end_date: string | null;
+  brief: string | null;
   created_at: string;
 };
 
@@ -73,7 +74,7 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
 
   const { data, error } = await supabase
     .from("campaigns")
-    .select("campaign_id, campaign_name, status, package_size, start_date, end_date, created_at, clients(company_name)")
+    .select("campaign_id, campaign_name, brief, status, package_size, start_date, end_date, created_at, clients(company_name)")
     .order("created_at", { ascending: false });
 
   if (error) return { success: false, error: error.message };
@@ -103,6 +104,7 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
       koc_count: countMap.get(c.campaign_id) ?? 0,
       start_date: c.start_date,
       end_date: c.end_date,
+      brief: c.brief,
       created_at: c.created_at,
     })),
   };
@@ -272,6 +274,33 @@ export async function updateCampaign(
 
   revalidatePath("/admin/campaigns");
   revalidatePath(`/admin/campaigns/${campaignId}`);
+  revalidatePath("/client/campaigns");
+  revalidatePath("/client/dashboard");
+  return { success: true, data: undefined };
+}
+
+export async function deleteCampaign(campaignId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  // campaign_kocs uses ON DELETE RESTRICT — delete children first
+  const { error: kocError } = await supabase
+    .from("campaign_kocs")
+    .delete()
+    .eq("campaign_id", campaignId);
+
+  if (kocError) return { success: false, error: kocError.message };
+
+  const { error } = await supabase
+    .from("campaigns")
+    .delete()
+    .eq("campaign_id", campaignId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/dashboard");
+  revalidatePath("/client/campaigns");
+  revalidatePath("/client/dashboard");
   return { success: true, data: undefined };
 }
 
