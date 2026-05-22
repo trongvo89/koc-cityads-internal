@@ -58,6 +58,8 @@ export default async function CampaignDetailPage({
         koc_id: k.koc_id,
         name: k.name,
         category: k.category,
+        follower: k.follower,
+        location: k.location,
       }))
     : [];
 

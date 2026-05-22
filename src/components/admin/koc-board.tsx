@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Plus, Trash2, MoreHorizontal, ExternalLink, RefreshCw } from "lucide-react";
+import { useState, useTransition, useMemo, useEffect } from "react";
+import { Plus, Trash2, MoreHorizontal, ExternalLink, RefreshCw, Search } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -30,13 +31,19 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
-  addKocToCampaign,
+  addKocsToCampaign,
   removeKocFromCampaign,
   updateCampaignKocStatus,
   renewMagicLink,
 } from "@/lib/actions/campaigns";
 import type { CampaignDetail, CampaignKocRow } from "@/lib/actions/campaigns";
 import type { OperationStatus, SampleStatus } from "@/lib/types/enums";
+
+function formatFollower(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
+  return String(n);
+}
 
 // ─── Status display maps ───────────────────────────────────────────────────────
 
@@ -239,16 +246,240 @@ function KocActionMenu({
 
 // ─── Main KocBoard ─────────────────────────────────────────────────────────────
 
+type KocItem = {
+  koc_id: string;
+  name: string;
+  category: string[] | null;
+  follower: number | null;
+  location: string | null;
+};
+
+// ─── Add KOCs Dialog ──────────────────────────────────────────────────────────
+
+function AddKocsDialog({
+  open,
+  availableKocs,
+  onClose,
+  onAdd,
+  isPending,
+}: {
+  open: boolean;
+  availableKocs: KocItem[];
+  onClose: () => void;
+  onAdd: (ids: string[]) => void;
+  isPending: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const [catFilter, setCatFilter] = useState("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (open) {
+      setSearch("");
+      setCatFilter("all");
+      setSelected(new Set());
+    }
+  }, [open]);
+
+  const allCategories = useMemo(() => {
+    const set = new Set<string>();
+    for (const k of availableKocs) {
+      for (const c of k.category ?? []) set.add(c);
+    }
+    return Array.from(set).sort();
+  }, [availableKocs]);
+
+  const filtered = useMemo(
+    () =>
+      availableKocs.filter((k) => {
+        const matchSearch =
+          !search || k.name.toLowerCase().includes(search.toLowerCase());
+        const matchCat =
+          catFilter === "all" || (k.category ?? []).includes(catFilter);
+        return matchSearch && matchCat;
+      }),
+    [availableKocs, search, catFilter]
+  );
+
+  const allFilteredSelected =
+    filtered.length > 0 && filtered.every((k) => selected.has(k.koc_id));
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allFilteredSelected) {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        filtered.forEach((k) => next.delete(k.koc_id));
+        return next;
+      });
+    } else {
+      setSelected((prev) => {
+        const next = new Set(prev);
+        filtered.forEach((k) => next.add(k.koc_id));
+        return next;
+      });
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Thêm KOC vào campaign</DialogTitle>
+        </DialogHeader>
+
+        {availableKocs.length === 0 ? (
+          <p className="py-4 text-sm text-zinc-500 text-center">
+            Tất cả KOC hiện tại đã có trong campaign này.
+          </p>
+        ) : (
+          <>
+            {/* Filters */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-zinc-400" />
+                <Input
+                  placeholder="Tìm theo tên..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-8 h-9 text-sm"
+                />
+              </div>
+              <Select value={catFilter} onValueChange={setCatFilter}>
+                <SelectTrigger className="w-44 h-9 text-sm">
+                  <SelectValue placeholder="Ngành hàng" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả ngành</SelectItem>
+                  {allCategories.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Checklist */}
+            <div className="border border-zinc-200 rounded-md overflow-hidden">
+              {/* Header row */}
+              <div className="bg-zinc-50 border-b border-zinc-200 px-3 py-2 flex items-center gap-2.5">
+                <Checkbox
+                  checked={allFilteredSelected}
+                  onCheckedChange={toggleAll}
+                />
+                <span className="text-xs text-zinc-500">
+                  {filtered.length} KOC
+                  {search || catFilter !== "all" ? " phù hợp" : " khả dụng"}
+                </span>
+                {selected.size > 0 && (
+                  <Badge variant="secondary" className="ml-auto text-xs">
+                    {selected.size} đã chọn
+                  </Badge>
+                )}
+              </div>
+
+              {/* Scrollable list */}
+              <div className="max-h-[340px] overflow-y-auto divide-y divide-zinc-100">
+                {filtered.length === 0 ? (
+                  <p className="text-sm text-zinc-400 text-center py-10">
+                    Không tìm thấy KOC phù hợp
+                  </p>
+                ) : (
+                  filtered.map((k) => {
+                    const isSelected = selected.has(k.koc_id);
+                    return (
+                      <label
+                        key={k.koc_id}
+                        className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                          isSelected ? "bg-blue-50/60" : "hover:bg-zinc-50"
+                        }`}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggle(k.koc_id)}
+                          className="mt-0.5 flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium text-zinc-900 text-sm truncate">
+                              {k.name}
+                            </span>
+                            {k.follower != null && k.follower > 0 && (
+                              <span className="text-xs text-zinc-400 flex-shrink-0">
+                                {formatFollower(k.follower)} followers
+                              </span>
+                            )}
+                          </div>
+                          {k.category && k.category.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {k.category.map((c) => (
+                                <span
+                                  key={c}
+                                  className={`text-[10px] rounded px-1.5 py-0.5 ${
+                                    c === catFilter
+                                      ? "bg-blue-100 text-blue-700"
+                                      : "bg-zinc-100 text-zinc-600"
+                                  }`}
+                                >
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {k.location && (
+                            <div className="text-xs text-zinc-400 mt-0.5">
+                              {k.location}
+                            </div>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>
+            Hủy
+          </Button>
+          <Button
+            onClick={() => onAdd(Array.from(selected))}
+            disabled={selected.size === 0 || isPending}
+          >
+            {isPending
+              ? "Đang thêm..."
+              : selected.size > 0
+              ? `Thêm ${selected.size} KOC`
+              : "Thêm KOC"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Main KocBoard ─────────────────────────────────────────────────────────────
+
 export default function KocBoard({
   campaign,
   allKocs,
 }: {
   campaign: CampaignDetail;
-  allKocs: { koc_id: string; name: string; category: string[] | null }[];
+  allKocs: KocItem[];
 }) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
-  const [selectedKocId, setSelectedKocId] = useState("");
   const [filter, setFilter] = useState<string>("all");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -325,14 +556,13 @@ export default function KocBoard({
     });
   }
 
-  function handleAddKoc() {
-    if (!selectedKocId) return;
+  function handleAddKocs(kocIds: string[]) {
+    if (kocIds.length === 0) return;
     setError(null);
     startTransition(async () => {
-      const result = await addKocToCampaign(campaign.campaign_id, selectedKocId);
+      const result = await addKocsToCampaign(campaign.campaign_id, kocIds);
       if (result.success) {
         setAddOpen(false);
-        setSelectedKocId("");
       } else {
         setError(result.error);
       }
@@ -588,48 +818,14 @@ export default function KocBoard({
         </DialogContent>
       </Dialog>
 
-      {/* Add KOC Dialog */}
-      <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Thêm KOC vào campaign</DialogTitle>
-          </DialogHeader>
-          <div className="py-2">
-            {availableKocs.length === 0 ? (
-              <p className="text-sm text-zinc-500">
-                Tất cả KOCs hiện tại đã có trong campaign này.
-              </p>
-            ) : (
-              <Select value={selectedKocId} onValueChange={setSelectedKocId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn KOC..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableKocs.map((k) => (
-                    <SelectItem key={k.koc_id} value={k.koc_id}>
-                      {k.name}
-                      {k.category && k.category.length > 0
-                        ? ` — ${k.category.join(", ")}`
-                        : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)}>
-              Hủy
-            </Button>
-            <Button
-              onClick={handleAddKoc}
-              disabled={!selectedKocId || isPending}
-            >
-              {isPending ? "Đang thêm..." : "Thêm KOC"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Add KOCs Dialog */}
+      <AddKocsDialog
+        open={addOpen}
+        availableKocs={availableKocs}
+        onClose={() => setAddOpen(false)}
+        onAdd={handleAddKocs}
+        isPending={isPending}
+      />
     </div>
   );
 }

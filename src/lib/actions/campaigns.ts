@@ -313,30 +313,41 @@ export async function addKocToCampaign(
   campaignId: string,
   kocId: string
 ): Promise<ActionResult> {
+  return addKocsToCampaign(campaignId, [kocId]);
+}
+
+export async function addKocsToCampaign(
+  campaignId: string,
+  kocIds: string[]
+): Promise<ActionResult> {
+  if (kocIds.length === 0) return { success: true, data: undefined };
+
   const supabase = await createClient();
 
-  // Pre-populate shipping address from KOC's saved defaults so admin can ship
-  // immediately after client approval without asking KOC to fill in again.
-  const { data: koc } = await supabase
+  const { data: kocs } = await supabase
     .from("kocs")
-    .select("name, phone, default_address, location")
-    .eq("koc_id", kocId)
-    .single();
+    .select("koc_id, name, phone, default_address, location")
+    .in("koc_id", kocIds);
 
-  const hasAddress = !!koc?.default_address;
+  const kocMap = new Map((kocs ?? []).map((k) => [k.koc_id, k]));
 
-  const { error } = await supabase.from("campaign_kocs").insert({
-    campaign_id: campaignId,
-    koc_id: kocId,
-    ...(hasAddress && {
-      receiver_name: koc!.name,
-      receiver_phone: koc!.phone ?? null,
-      receiver_address: koc!.default_address!,
-      receiver_province: koc!.location ?? null,
-      address_status: "submitted",
-    }),
+  const rows = kocIds.map((kocId) => {
+    const koc = kocMap.get(kocId);
+    const hasAddress = !!koc?.default_address;
+    return {
+      campaign_id: campaignId,
+      koc_id: kocId,
+      ...(hasAddress && {
+        receiver_name: koc!.name,
+        receiver_phone: koc!.phone ?? null,
+        receiver_address: koc!.default_address!,
+        receiver_province: koc!.location ?? null,
+        address_status: "submitted" as const,
+      }),
+    };
   });
 
+  const { error } = await supabase.from("campaign_kocs").insert(rows);
   if (error) return { success: false, error: error.message };
 
   revalidatePath(`/admin/campaigns/${campaignId}`);
