@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useTransition, useMemo, useEffect } from "react";
-import { Plus, Trash2, MoreHorizontal, ExternalLink, RefreshCw, Search } from "lucide-react";
+import {
+  Plus, Trash2, MoreHorizontal, ExternalLink, RefreshCw,
+  Search, Send, Copy, Check, CheckCheck,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,9 +38,76 @@ import {
   removeKocFromCampaign,
   updateCampaignKocStatus,
   renewMagicLink,
+  markAsReminded,
 } from "@/lib/actions/campaigns";
 import type { CampaignDetail, CampaignKocRow } from "@/lib/actions/campaigns";
-import type { OperationStatus, SampleStatus } from "@/lib/types/enums";
+import type { NotificationType, OperationStatus, SampleStatus } from "@/lib/types/enums";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+// Statuses where KOC needs to take action via the magic link
+const LINK_ACTIONABLE: ReadonlySet<OperationStatus> = new Set([
+  "client_approved",
+  "waiting_address",
+  "sample_sent",
+  "sample_received",
+  "waiting_video",
+  "need_revision",
+]);
+
+// After admin changes to these statuses, auto-prompt to send link
+const AUTO_PROMPT_STATUSES: ReadonlySet<OperationStatus> = new Set([
+  "waiting_address",
+  "sample_sent",
+  "waiting_video",
+  "need_revision",
+]);
+
+function buildZaloMessage(
+  kocName: string,
+  campaignName: string,
+  status: OperationStatus,
+  token: string,
+  expiresAt: string,
+  deadlineDate: string | null,
+  revisionNote: string | null
+): { message: string; type: NotificationType } {
+  const link = `${APP_URL}/koc/${token}`;
+  const expiry = new Date(expiresAt).toLocaleDateString("vi-VN");
+
+  if (status === "waiting_address" || status === "client_approved") {
+    return {
+      type: "address_request",
+      message: `Chào ${kocName} 😊\n\nBạn đã được CityAds chọn tham gia campaign "${campaignName}".\n\nĐể gửi hàng mẫu, mình cần bạn điền thông tin địa chỉ nhận hàng tại đây:\n👉 ${link}\n(Link có hiệu lực đến ${expiry})\n\nCảm ơn bạn! 🙏`,
+    };
+  }
+  if (status === "sample_sent") {
+    return {
+      type: "sample_check",
+      message: `Chào ${kocName} 😊\n\nHàng mẫu của campaign "${campaignName}" đã được gửi đến bạn rồi nhé!\n\nVui lòng xác nhận đã nhận hàng tại đây:\n👉 ${link}\n\nCảm ơn bạn! 🙏`,
+    };
+  }
+  if (status === "waiting_video" || status === "sample_received") {
+    const deadline = deadlineDate
+      ? `\n(Deadline: ${new Date(deadlineDate).toLocaleDateString("vi-VN")})`
+      : "";
+    return {
+      type: "video_brief",
+      message: `Chào ${kocName} 😊\n\nCảm ơn bạn đã nhận hàng mẫu từ campaign "${campaignName}"!\n\nSau khi quay video, vui lòng submit link tại đây:\n👉 ${link}${deadline}\n\nCảm ơn bạn! 🙏`,
+    };
+  }
+  if (status === "need_revision") {
+    const note = revisionNote ? `\n📝 ${revisionNote}\n` : "";
+    return {
+      type: "revision_request",
+      message: `Chào ${kocName} 😊\n\nVideo của bạn trong campaign "${campaignName}" cần được chỉnh sửa:${note}\nVui lòng submit lại tại đây:\n👉 ${link}\n\nCảm ơn bạn! 🙏`,
+    };
+  }
+  return {
+    type: "custom",
+    message: `Chào ${kocName} 😊\n\nLink của bạn trong campaign "${campaignName}":\n👉 ${link}\n\nCảm ơn! 🙏`,
+  };
+}
 
 function formatFollower(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -96,6 +166,191 @@ const CLIENT_STATUS: Record<string, { label: string; variant: BadgeVariant }> = 
   rejected: { label: "Từ chối", variant: "destructive" },
 };
 
+// ─── Send Link Dialog ─────────────────────────────────────────────────────────
+
+type SendLinkTarget = {
+  koc: CampaignKocRow;
+  effectiveStatus: OperationStatus;
+};
+
+function SendLinkDialog({
+  target,
+  campaignName,
+  campaignId,
+  onClose,
+}: {
+  target: SendLinkTarget | null;
+  campaignName: string;
+  campaignId: string;
+  onClose: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [copied, setCopied] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [renewed, setRenewed] = useState(false);
+  const [editedMessage, setEditedMessage] = useState("");
+
+  // Rebuild message whenever target changes
+  useEffect(() => {
+    if (!target) return;
+    setSent(false);
+    setCopied(false);
+    setRenewed(false);
+    const { message } = buildZaloMessage(
+      target.koc.koc_name,
+      campaignName,
+      target.effectiveStatus,
+      target.koc.magic_link_token,
+      target.koc.magic_link_expires_at,
+      target.koc.deadline_date,
+      target.koc.revision_note
+    );
+    setEditedMessage(message);
+  }, [target, campaignName]);
+
+  const STATUS_LABEL: Partial<Record<OperationStatus, string>> = {
+    waiting_address: "Điền địa chỉ",
+    client_approved: "Điền địa chỉ",
+    sample_sent: "Xác nhận nhận hàng",
+    sample_received: "Nộp video",
+    waiting_video: "Nộp video",
+    need_revision: "Nộp lại video",
+  };
+
+  function handleCopy() {
+    navigator.clipboard.writeText(editedMessage).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function handleOpenZalo() {
+    window.open(`https://zalo.me/?message=${encodeURIComponent(editedMessage)}`, "_blank");
+  }
+
+  function handleRenewLink() {
+    if (!target) return;
+    startTransition(async () => {
+      const result = await renewMagicLink(target.koc.campaign_koc_id, campaignId);
+      if (result.success) setRenewed(true);
+    });
+  }
+
+  function handleMarkSent() {
+    if (!target) return;
+    const { type } = buildZaloMessage(
+      target.koc.koc_name,
+      campaignName,
+      target.effectiveStatus,
+      target.koc.magic_link_token,
+      target.koc.magic_link_expires_at,
+      target.koc.deadline_date,
+      target.koc.revision_note
+    );
+    startTransition(async () => {
+      const result = await markAsReminded(
+        target!.koc.campaign_koc_id,
+        campaignId,
+        editedMessage,
+        type
+      );
+      if (result.success) setSent(true);
+    });
+  }
+
+  if (!target) return null;
+
+  const isExpired = new Date(target.koc.magic_link_expires_at) < new Date();
+  const link = `${APP_URL}/koc/${target.koc.magic_link_token}`;
+
+  return (
+    <Dialog open={!!target} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="h-4 w-4 text-zinc-500" />
+            Gửi link Zalo — {target.koc.koc_name}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-zinc-500">
+            <span>
+              Yêu cầu:{" "}
+              <span className="font-medium text-zinc-700">
+                {STATUS_LABEL[target.effectiveStatus] ?? target.effectiveStatus}
+              </span>
+            </span>
+            <a
+              href={link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline flex items-center gap-1"
+            >
+              <ExternalLink className="h-3 w-3" />
+              Xem link
+            </a>
+          </div>
+
+          <Textarea
+            value={editedMessage}
+            onChange={(e) => setEditedMessage(e.target.value)}
+            rows={7}
+            className="text-sm font-mono resize-none"
+          />
+
+          {isExpired && !renewed && (
+            <div className="rounded-md bg-orange-50 border border-orange-200 px-3 py-2 flex items-center justify-between gap-3">
+              <p className="text-xs text-orange-700">
+                Link đã hết hạn — KOC sẽ không mở được.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRenewLink}
+                disabled={isPending}
+                className="gap-1.5 border-orange-300 text-orange-700 flex-shrink-0"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Gia hạn 7 ngày
+              </Button>
+            </div>
+          )}
+          {renewed && (
+            <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded px-3 py-1.5">
+              Link đã được gia hạn 7 ngày. Hãy copy lại message ở trên để gửi link mới.
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 pt-1">
+          <Button size="sm" variant="outline" onClick={handleCopy} className="gap-1.5">
+            {copied ? (
+              <><Check className="h-3.5 w-3.5 text-green-600" />Đã copy</>
+            ) : (
+              <><Copy className="h-3.5 w-3.5" />Copy</>
+            )}
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleOpenZalo} className="gap-1.5">
+            <Send className="h-3.5 w-3.5" />
+            Mở Zalo
+          </Button>
+          <Button
+            size="sm"
+            variant={sent ? "secondary" : "default"}
+            onClick={handleMarkSent}
+            disabled={isPending || sent}
+            className="gap-1.5 ml-auto"
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
+            {sent ? "Đã ghi nhận" : "Đánh dấu đã gửi"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function StatusBadge({
   map,
   value,
@@ -115,12 +370,14 @@ function KocActionMenu({
   onAction,
   onNeedRevision,
   onRenewLink,
+  onSendLink,
 }: {
   koc: CampaignKocRow;
   campaignId: string;
   onAction: (id: string, updates: { operation_status?: OperationStatus; sample_status?: SampleStatus }) => void;
   onNeedRevision: (id: string) => void;
   onRenewLink: (id: string) => void;
+  onSendLink: (koc: CampaignKocRow, status: OperationStatus) => void;
 }) {
   const isExpired = new Date(koc.magic_link_expires_at) < new Date();
 
@@ -132,6 +389,18 @@ function KocActionMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
+        {LINK_ACTIONABLE.has(koc.operation_status) && (
+          <>
+            <DropdownMenuItem
+              onClick={() => onSendLink(koc, koc.operation_status)}
+              className="text-blue-700 font-medium"
+            >
+              <Send className="h-3.5 w-3.5 mr-2" />
+              Gửi link Zalo
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuLabel>Cập nhật trạng thái</DropdownMenuLabel>
         <DropdownMenuSeparator />
         {koc.operation_status === "draft" && (
@@ -488,6 +757,9 @@ export default function KocBoard({
   const [revisionTargetId, setRevisionTargetId] = useState<string | null>(null);
   const [revisionNote, setRevisionNote] = useState("");
 
+  // Send link dialog
+  const [sendLinkTarget, setSendLinkTarget] = useState<SendLinkTarget | null>(null);
+
   const assignedKocIds = new Set(campaign.kocs.map((k) => k.koc_id));
   const availableKocs = allKocs.filter((k) => !assignedKocIds.has(k.koc_id));
 
@@ -523,8 +795,21 @@ export default function KocBoard({
         campaign.campaign_id,
         updates
       );
-      if (!result.success) setError(result.error);
+      if (result.success) {
+        // Auto-open send link dialog when KOC needs to take action
+        const newStatus = updates.operation_status;
+        if (newStatus && AUTO_PROMPT_STATUSES.has(newStatus)) {
+          const koc = campaign.kocs.find((k) => k.campaign_koc_id === campaignKocId);
+          if (koc) setSendLinkTarget({ koc, effectiveStatus: newStatus });
+        }
+      } else {
+        setError(result.error);
+      }
     });
+  }
+
+  function handleSendLink(koc: CampaignKocRow, status: OperationStatus) {
+    setSendLinkTarget({ koc, effectiveStatus: status });
   }
 
   function handleConfirmRevision() {
@@ -747,12 +1032,24 @@ export default function KocBoard({
                       </td>
                       <td className="px-3 py-2.5 text-right">
                         <div className="flex items-center gap-1 justify-end">
+                          {LINK_ACTIONABLE.has(koc.operation_status) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => handleSendLink(koc, koc.operation_status)}
+                              title="Gửi link Zalo"
+                            >
+                              <Send className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <KocActionMenu
                             koc={koc}
                             campaignId={campaign.campaign_id}
                             onAction={handleStatusUpdate}
                             onNeedRevision={setRevisionTargetId}
                             onRenewLink={handleRenewLink}
+                            onSendLink={handleSendLink}
                           />
                           <Button
                             variant="ghost"
@@ -825,6 +1122,14 @@ export default function KocBoard({
         onClose={() => setAddOpen(false)}
         onAdd={handleAddKocs}
         isPending={isPending}
+      />
+
+      {/* Send Link Dialog */}
+      <SendLinkDialog
+        target={sendLinkTarget}
+        campaignName={campaign.campaign_name}
+        campaignId={campaign.campaign_id}
+        onClose={() => setSendLinkTarget(null)}
       />
     </div>
   );
