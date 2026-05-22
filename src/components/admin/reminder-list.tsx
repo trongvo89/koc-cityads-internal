@@ -9,7 +9,10 @@ import { markAsReminded, renewMagicLink } from "@/lib/actions/campaigns";
 import type { ReminderKoc } from "@/lib/actions/campaigns";
 import type { NotificationType } from "@/lib/types/enums";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+function getAppUrl(): string {
+  if (typeof window !== "undefined") return window.location.origin;
+  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+}
 
 function buildMessage(
   kocName: string,
@@ -20,7 +23,7 @@ function buildMessage(
   deadlineDate: string | null,
   revisionNote: string | null
 ): { message: string; type: NotificationType } {
-  const link = `${APP_URL}/koc/${token}`;
+  const link = `${getAppUrl()}/koc/${token}`;
   const expiry = new Date(expiresAt).toLocaleDateString("vi-VN");
 
   if (status === "waiting_address" || status === "client_approved") {
@@ -82,7 +85,7 @@ function ReminderCard({
   const [renewed, setRenewed] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const link = `${APP_URL}/koc/${koc.magic_link_token}`;
+  const link = `${getAppUrl()}/koc/${koc.magic_link_token}`;
   const isExpired = new Date(koc.magic_link_expires_at) < new Date();
 
   function handleCopy() {
@@ -93,9 +96,7 @@ function ReminderCard({
   }
 
   function handleOpenZalo() {
-    if (link) {
-      window.open(`https://zalo.me/?message=${encodeURIComponent(editedMessage)}`, "_blank");
-    }
+    window.open("https://chat.zalo.me/", "_blank");
   }
 
   function handleRenewLink() {

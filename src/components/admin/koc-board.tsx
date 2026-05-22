@@ -43,7 +43,10 @@ import {
 import type { CampaignDetail, CampaignKocRow } from "@/lib/actions/campaigns";
 import type { NotificationType, OperationStatus, SampleStatus } from "@/lib/types/enums";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+function getAppUrl(): string {
+  if (typeof window !== "undefined") return window.location.origin;
+  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+}
 
 // Statuses where KOC needs to take action via the magic link
 const LINK_ACTIONABLE: ReadonlySet<OperationStatus> = new Set([
@@ -72,7 +75,7 @@ function buildZaloMessage(
   deadlineDate: string | null,
   revisionNote: string | null
 ): { message: string; type: NotificationType } {
-  const link = `${APP_URL}/koc/${token}`;
+  const link = `${getAppUrl()}/koc/${token}`;
   const expiry = new Date(expiresAt).toLocaleDateString("vi-VN");
 
   if (status === "waiting_address" || status === "client_approved") {
@@ -225,7 +228,7 @@ function SendLinkDialog({
   }
 
   function handleOpenZalo() {
-    window.open(`https://zalo.me/?message=${encodeURIComponent(editedMessage)}`, "_blank");
+    window.open("https://chat.zalo.me/", "_blank");
   }
 
   function handleRenewLink() {
@@ -261,7 +264,7 @@ function SendLinkDialog({
   if (!target) return null;
 
   const isExpired = new Date(target.koc.magic_link_expires_at) < new Date();
-  const link = `${APP_URL}/koc/${target.koc.magic_link_token}`;
+  const link = `${getAppUrl()}/koc/${target.koc.magic_link_token}`;
 
   return (
     <Dialog open={!!target} onOpenChange={(v) => !v && onClose()}>
