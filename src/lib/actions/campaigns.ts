@@ -56,6 +56,7 @@ export type CampaignDetail = {
   client_name: string;
   brief: string | null;
   status: CampaignStatus;
+  source: "manual" | "from_proposal";
   package_size: number;
   start_date: string | null;
   end_date: string | null;
@@ -122,13 +123,14 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
 export async function getCampaignDetail(id: string): Promise<ActionResult<CampaignDetail>> {
   const supabase = await createClient();
 
-  const { data: campaign, error: ce } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: campaign, error: ce } = await (supabase
     .from("campaigns")
     .select(
-      "campaign_id, campaign_name, client_id, brief, status, package_size, start_date, end_date, clients(company_name)"
+      "campaign_id, campaign_name, client_id, brief, status, source, package_size, start_date, end_date, clients(company_name)"
     )
     .eq("campaign_id", id)
-    .single();
+    .single() as any) as { data: any; error: any };
 
   if (ce || !campaign) return { success: false, error: ce?.message ?? "Campaign not found" };
 
@@ -151,6 +153,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
       client_name: (campaign.clients as { company_name: string } | null)?.company_name ?? "—",
       brief: campaign.brief,
       status: campaign.status,
+      source: (campaign.source as "manual" | "from_proposal") ?? "manual",
       package_size: campaign.package_size,
       start_date: campaign.start_date,
       end_date: campaign.end_date,

@@ -410,11 +410,13 @@ export async function convertProposalToCampaign(
   // Create campaign
   const { data: campaign, error: campErr } = await supabase
     .from("campaigns")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .insert({
       campaign_name: opts.campaign_name,
       client_id: opts.client_id,
       package_size: approvedKocIds.length,
-    })
+      source: "from_proposal",
+    } as any)
     .select("campaign_id")
     .single();
 
@@ -433,6 +435,7 @@ export async function convertProposalToCampaign(
       return {
         campaign_id: campaign.campaign_id,
         koc_id,
+        operation_status: "waiting_video" as const,
         receiver_name: koc?.name ?? null,
         receiver_phone: koc?.phone ?? null,
         receiver_address: koc?.default_address ?? null,

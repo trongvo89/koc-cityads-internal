@@ -67,7 +67,8 @@ function buildZaloMessage(
   status: OperationStatus,
   token: string,
   deadlineDate: string | null,
-  revisionNote: string | null
+  revisionNote: string | null,
+  isProposalCampaign?: boolean
 ): { message: string; type: NotificationType } {
   const link = `${getAppUrl()}/koc/${token}`;
 
@@ -83,9 +84,12 @@ function buildZaloMessage(
   const deadline = deadlineDate
     ? `\n(Deadline: ${new Date(deadlineDate).toLocaleDateString("vi-VN")})`
     : "";
+  const intro = isProposalCampaign
+    ? `Chào ${kocName} 😊\n\nBạn đã được chọn tham gia campaign "${campaignName}"!\n\nVui lòng quay video và submit link tại đây:`
+    : `Chào ${kocName} 😊\n\nCảm ơn bạn đã nhận hàng mẫu từ campaign "${campaignName}"!\n\nSau khi quay video, vui lòng submit link tại đây:`;
   return {
     type: "video_brief",
-    message: `Chào ${kocName} 😊\n\nCảm ơn bạn đã nhận hàng mẫu từ campaign "${campaignName}"!\n\nSau khi quay video, vui lòng submit link tại đây:\n👉 ${link}${deadline}\n\nCảm ơn bạn! 🙏`,
+    message: `${intro}\n👉 ${link}${deadline}\n\nCảm ơn bạn! 🙏`,
   };
 }
 
@@ -176,11 +180,13 @@ function SendLinkDialog({
   target,
   campaignName,
   campaignId,
+  isProposalCampaign,
   onClose,
 }: {
   target: SendLinkTarget | null;
   campaignName: string;
   campaignId: string;
+  isProposalCampaign: boolean;
   onClose: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -201,7 +207,8 @@ function SendLinkDialog({
       target.effectiveStatus,
       target.koc.magic_link_token,
       target.koc.deadline_date,
-      target.koc.revision_note
+      target.koc.revision_note,
+      isProposalCampaign
     );
     setEditedMessage(message);
   }, [target, campaignName]);
@@ -240,7 +247,8 @@ function SendLinkDialog({
       target.effectiveStatus,
       target.koc.magic_link_token,
       target.koc.deadline_date,
-      target.koc.revision_note
+      target.koc.revision_note,
+      isProposalCampaign
     );
     startTransition(async () => {
       const result = await markAsReminded(
@@ -362,6 +370,7 @@ function StatusBadge({
 function KocActionMenu({
   koc,
   campaignId,
+  isProposalCampaign,
   onAction,
   onNeedRevision,
   onRenewLink,
@@ -370,6 +379,7 @@ function KocActionMenu({
 }: {
   koc: CampaignKocRow;
   campaignId: string;
+  isProposalCampaign: boolean;
   onAction: (id: string, updates: { operation_status?: OperationStatus; sample_status?: SampleStatus }) => void;
   onNeedRevision: (id: string) => void;
   onRenewLink: (id: string) => void;
@@ -400,80 +410,85 @@ function KocActionMenu({
         )}
         <DropdownMenuLabel>Cập nhật trạng thái</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {koc.operation_status === "draft" && (
+
+        {/* Manual campaign only: client approval flow */}
+        {!isProposalCampaign && koc.operation_status === "draft" && (
           <DropdownMenuItem
             onClick={() => onAction(koc.campaign_koc_id, { operation_status: "sent_to_client" })}
           >
             Gửi cho client
           </DropdownMenuItem>
         )}
-        {koc.operation_status === "sent_to_client" && (
+        {!isProposalCampaign && koc.operation_status === "sent_to_client" && (
           <>
             <DropdownMenuItem
-              onClick={() =>
-                onAction(koc.campaign_koc_id, { operation_status: "client_approved" })
-              }
+              onClick={() => onAction(koc.campaign_koc_id, { operation_status: "client_approved" })}
             >
               Client duyệt
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() =>
-                onAction(koc.campaign_koc_id, { operation_status: "client_rejected" })
-              }
+              onClick={() => onAction(koc.campaign_koc_id, { operation_status: "client_rejected" })}
             >
               Client từ chối
             </DropdownMenuItem>
           </>
         )}
-        {(koc.operation_status === "client_approved" ||
+
+        {/* Manual campaign only: address + sample flow */}
+        {!isProposalCampaign && (
+          koc.operation_status === "client_approved" ||
           koc.operation_status === "waiting_address" ||
           koc.operation_status === "address_submitted" ||
-          koc.operation_status === "waiting_sample_sent") && (
+          koc.operation_status === "waiting_sample_sent"
+        ) && (
           <DropdownMenuItem onClick={() => onEditAddress(koc)}>
             <MapPin className="h-3.5 w-3.5 mr-2" />
             {koc.address_status === "submitted" ? "Sửa địa chỉ" : "Nhập địa chỉ"}
           </DropdownMenuItem>
         )}
-        {koc.operation_status === "address_submitted" && (
+        {!isProposalCampaign && koc.operation_status === "address_submitted" && (
           <DropdownMenuItem
             onClick={() =>
-              onAction(koc.campaign_koc_id, {
-                operation_status: "sample_sent",
-                sample_status: "sent",
-              })
+              onAction(koc.campaign_koc_id, { operation_status: "sample_sent", sample_status: "sent" })
             }
           >
             Đánh dấu gửi hàng mẫu
           </DropdownMenuItem>
         )}
-        {koc.operation_status === "sample_sent" && (
+        {!isProposalCampaign && koc.operation_status === "sample_sent" && (
           <DropdownMenuItem
             onClick={() =>
-              onAction(koc.campaign_koc_id, {
-                operation_status: "sample_received",
-                sample_status: "received",
-              })
+              onAction(koc.campaign_koc_id, { operation_status: "sample_received", sample_status: "received" })
             }
           >
             Xác nhận nhận hàng
           </DropdownMenuItem>
         )}
+
+        {/* Shared: move to waiting_video */}
         {(koc.operation_status === "sample_received" ||
-          koc.operation_status === "video_submitted") && (
+          (!isProposalCampaign && koc.operation_status === "video_submitted")) && (
           <DropdownMenuItem
-            onClick={() =>
-              onAction(koc.campaign_koc_id, { operation_status: "waiting_video" })
-            }
+            onClick={() => onAction(koc.campaign_koc_id, { operation_status: "waiting_video" })}
           >
             Chờ nộp video
           </DropdownMenuItem>
         )}
+
+        {/* Proposal campaign: set to waiting_video if stuck at draft */}
+        {isProposalCampaign && koc.operation_status === "draft" && (
+          <DropdownMenuItem
+            onClick={() => onAction(koc.campaign_koc_id, { operation_status: "waiting_video" })}
+          >
+            Chờ nộp video
+          </DropdownMenuItem>
+        )}
+
+        {/* Shared: video review actions */}
         {koc.operation_status === "video_submitted" && (
           <>
             <DropdownMenuItem
-              onClick={() =>
-                onAction(koc.campaign_koc_id, { operation_status: "video_approved" })
-              }
+              onClick={() => onAction(koc.campaign_koc_id, { operation_status: "video_approved" })}
             >
               Duyệt video
             </DropdownMenuItem>
@@ -489,6 +504,7 @@ function KocActionMenu({
             Hoàn thành
           </DropdownMenuItem>
         )}
+
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => onRenewLink(koc.campaign_koc_id)}
@@ -847,6 +863,11 @@ function AddressDialog({
 
 // ─── Main KocBoard ─────────────────────────────────────────────────────────────
 
+// Status filter options per campaign type
+const PROPOSAL_FILTER_STATUSES: OperationStatus[] = [
+  "waiting_video", "video_submitted", "need_revision", "video_approved", "completed", "failed",
+];
+
 export default function KocBoard({
   campaign,
   allKocs,
@@ -854,6 +875,7 @@ export default function KocBoard({
   campaign: CampaignDetail;
   allKocs: KocItem[];
 }) {
+  const isProposalCampaign = campaign.source === "from_proposal";
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [filter, setFilter] = useState<string>("all");
@@ -973,8 +995,25 @@ export default function KocBoard({
     });
   }
 
+  const filterStatuses = isProposalCampaign
+    ? PROPOSAL_FILTER_STATUSES.map((v) => [v, OP_STATUS[v]] as const)
+    : (Object.entries(OP_STATUS) as [string, { label: string; variant: BadgeVariant }][]);
+
   return (
     <div>
+      {/* Proposal campaign info banner */}
+      {isProposalCampaign && (
+        <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 flex items-start gap-3">
+          <span className="text-blue-500 mt-0.5 text-base">📋</span>
+          <div>
+            <p className="text-sm font-medium text-blue-800">Campaign từ Proposal</p>
+            <p className="text-xs text-blue-600 mt-0.5">
+              KOC đã được client duyệt qua proposal. Flow đơn giản: KOC nộp video → Admin duyệt → Hoàn thành.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-3">
@@ -984,7 +1023,7 @@ export default function KocBoard({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Tất cả trạng thái</SelectItem>
-              {Object.entries(OP_STATUS).map(([v, { label }]) => (
+              {filterStatuses.map(([v, { label }]) => (
                 <SelectItem key={v} value={v}>
                   {label}
                 </SelectItem>
@@ -1145,6 +1184,7 @@ export default function KocBoard({
                           <KocActionMenu
                             koc={koc}
                             campaignId={campaign.campaign_id}
+                            isProposalCampaign={isProposalCampaign}
                             onAction={handleStatusUpdate}
                             onNeedRevision={setRevisionTargetId}
                             onRenewLink={handleRenewLink}
@@ -1229,6 +1269,7 @@ export default function KocBoard({
         target={sendLinkTarget}
         campaignName={campaign.campaign_name}
         campaignId={campaign.campaign_id}
+        isProposalCampaign={isProposalCampaign}
         onClose={() => setSendLinkTarget(null)}
       />
 
