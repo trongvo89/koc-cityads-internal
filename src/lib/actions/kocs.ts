@@ -133,9 +133,36 @@ export async function updateKoc(
   };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("kocs").update(data).eq("koc_id", kocId);
+
+  // Update koc profile
+  const { data: updatedKoc, error } = await supabase
+    .from("kocs")
+    .update(data)
+    .eq("koc_id", kocId)
+    .select("name, phone, default_address, location")
+    .single();
 
   if (error) return { success: false, error: error.message };
+
+  // Propagate new default_address to active campaign records that have no address yet
+  if (updatedKoc?.default_address) {
+    await supabase
+      .from("campaign_kocs")
+      .update({
+        receiver_name: updatedKoc.name,
+        receiver_phone: updatedKoc.phone ?? null,
+        receiver_address: updatedKoc.default_address,
+        receiver_province: updatedKoc.location ?? null,
+        address_status: "submitted",
+      })
+      .eq("koc_id", kocId)
+      .is("receiver_address", null)
+      .in("operation_status", [
+        "sent_to_client",
+        "client_approved",
+        "waiting_address",
+      ]);
+  }
 
   revalidatePath("/admin/kocs");
   return { success: true, data: undefined };
