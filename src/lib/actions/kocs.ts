@@ -139,3 +139,51 @@ export async function updateKoc(
   revalidatePath("/admin/kocs");
   return { success: true, data: undefined };
 }
+
+// ─── Bulk import ──────────────────────────────────────────────────────────────
+
+export type BulkKocRow = {
+  name: string;
+  tiktok_url?: string | null;
+  instagram_url?: string | null;
+  facebook_url?: string | null;
+  phone?: string | null;
+  zalo?: string | null;
+  follower?: number | null;
+  location?: string | null;
+  category?: string[] | null;
+};
+
+export async function bulkCreateKocs(
+  rows: BulkKocRow[]
+): Promise<ActionResult<{ created: number; skipped: string[] }>> {
+  if (rows.length === 0) return { success: false, error: "Không có dữ liệu để import." };
+  if (rows.length > 500) return { success: false, error: "Tối đa 500 KOC mỗi lần import." };
+
+  const valid = rows.filter((r) => r.name?.trim());
+  if (valid.length === 0) return { success: false, error: "Không có hàng nào có tên hợp lệ." };
+
+  const supabase = await createClient();
+  const inserts = valid.map((r) => ({
+    name: r.name.trim(),
+    tiktok_url: r.tiktok_url || null,
+    instagram_url: r.instagram_url || null,
+    facebook_url: r.facebook_url || null,
+    phone: r.phone || null,
+    zalo: r.zalo || null,
+    follower: r.follower ?? null,
+    location: r.location || null,
+    category: r.category?.length ? r.category : null,
+    status: "active" as const,
+  }));
+
+  const { error } = await supabase.from("kocs").insert(inserts);
+  if (error) return { success: false, error: error.message };
+
+  const skipped = rows
+    .filter((r) => !r.name?.trim())
+    .map((_, i) => `Hàng ${i + 1}`);
+
+  revalidatePath("/admin/kocs");
+  return { success: true, data: { created: inserts.length, skipped } };
+}

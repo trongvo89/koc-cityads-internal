@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Pencil, Search } from "lucide-react";
+import { Plus, Pencil, Search, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import KocFormDialog from "@/components/admin/koc-form-dialog";
+import KocBulkImportDialog from "@/components/admin/koc-bulk-import-dialog";
 import type { KocListItem } from "@/lib/actions/kocs";
 
 const STATUS_VARIANT: Record<
@@ -26,6 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default function KocsPageClient({ kocs }: { kocs: KocListItem[] }) {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [editingKoc, setEditingKoc] = useState<KocListItem | undefined>();
 
   const filtered = kocs.filter(
@@ -54,10 +56,16 @@ export default function KocsPageClient({ kocs }: { kocs: KocListItem[] }) {
           <h1 className="text-2xl font-bold text-zinc-900">KOCs</h1>
           <p className="text-zinc-500 text-sm mt-0.5">{kocs.length} KOCs trong hệ thống</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4 mr-2" />
-          Thêm KOC
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setBulkOpen(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Import CSV
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-2" />
+            Thêm KOC
+          </Button>
+        </div>
       </div>
 
       <div className="mb-4">
@@ -180,6 +188,11 @@ export default function KocsPageClient({ kocs }: { kocs: KocListItem[] }) {
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         koc={editingKoc}
+      />
+
+      <KocBulkImportDialog
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
       />
     </>
   );
