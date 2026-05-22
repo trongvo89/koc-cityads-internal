@@ -44,15 +44,17 @@ function parseCSVLine(line: string, sep: string): string[] {
 
 // Column name aliases → canonical field
 const COL_MAP: Record<string, keyof BulkKocRow> = {
-  tên: "name", name: "name", "tên koc": "name", koc: "name",
+  tên: "name", name: "name", "tên koc": "name", koc: "name", "tài khoản": "name", "tai khoan": "name",
   tiktok: "tiktok_url", tiktok_url: "tiktok_url", "tiktok url": "tiktok_url",
+  "link kênh tiktok": "tiktok_url", "link tiktok": "tiktok_url", "link kênh": "tiktok_url",
   instagram: "instagram_url", instagram_url: "instagram_url", ig: "instagram_url", "instagram url": "instagram_url",
   facebook: "facebook_url", facebook_url: "facebook_url", fb: "facebook_url", "facebook url": "facebook_url",
-  follower: "follower", followers: "follower", "theo dõi": "follower", subscriber: "follower", "lượt theo dõi": "follower",
+  follower: "follower", followers: "follower", "theo dõi": "follower", subscriber: "follower",
+  "lượt theo dõi": "follower", "người theo dõi": "follower", "nguoi theo doi": "follower",
   phone: "phone", sdt: "phone", "điện thoại": "phone", "số điện thoại": "phone",
   zalo: "zalo",
   location: "location", "khu vực": "location", "địa điểm": "location", "tỉnh thành": "location",
-  category: "category", "danh mục": "category", "lĩnh vực": "category",
+  category: "category", "danh mục": "category", "lĩnh vực": "category", "ngành hàng": "category", "nganh hang": "category",
 };
 
 function parseText(raw: string): { rows: BulkKocRow[]; errors: string[] } {
@@ -101,9 +103,9 @@ function parseText(raw: string): { rows: BulkKocRow[]; errors: string[] } {
 
 function downloadTemplate() {
   const csv = [
-    "Tên,TikTok,Instagram,Facebook,Followers,Phone,Zalo,Khu vực,Danh mục",
-    'Nguyen Van A,https://tiktok.com/@nguyenvana,https://instagram.com/nguyenvana,,50000,0901234567,0901234567,TP.HCM,"Beauty,Lifestyle"',
-    "Tran Thi B,https://tiktok.com/@tranthib,,,120000,0912345678,,Hà Nội,Food",
+    "Tài khoản,Người theo dõi,Link kênh TikTok,Ngành hàng,Phone,Khu vực",
+    'Nguyen Van A,50000,https://tiktok.com/@nguyenvana,"Beauty,Lifestyle",0901234567,TP.HCM',
+    "Tran Thi B,120000,https://tiktok.com/@tranthib,Food,0912345678,Hà Nội",
   ].join("\n");
   const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
   const a = document.createElement("a");
@@ -212,9 +214,9 @@ export default function KocBulkImportDialog({
               <p className="font-medium">Hướng dẫn:</p>
               <ul className="list-disc list-inside space-y-0.5 text-xs">
                 <li>Tải template CSV, điền dữ liệu rồi upload lên — hoặc copy từ Excel và dán vào ô bên dưới.</li>
-                <li>Hàng đầu tiên phải là tiêu đề cột. Cột bắt buộc: <strong>Tên</strong>.</li>
-                <li>Các cột khác: TikTok, Instagram, Facebook, Followers, Phone, Zalo, Khu vực, Danh mục.</li>
-                <li>Danh mục nhiều giá trị phân cách bằng dấu phẩy, ví dụ: <code>Beauty,Lifestyle</code>.</li>
+                <li>Hàng đầu tiên phải là tiêu đề cột. Cột bắt buộc: <strong>Tài khoản</strong>.</li>
+                <li>Các cột chính: <strong>Tài khoản, Người theo dõi, Link kênh TikTok, Ngành hàng</strong>.</li>
+                <li>Ngành hàng nhiều giá trị phân cách bằng dấu phẩy, ví dụ: <code>Beauty,Lifestyle</code>.</li>
               </ul>
             </div>
 
@@ -250,7 +252,7 @@ export default function KocBulkImportDialog({
               <Textarea
                 value={rawText}
                 onChange={(e) => handleParse(e.target.value)}
-                placeholder={"Tên\tTikTok\tInstagram\tFollowers\nNguyen Van A\thttps://tiktok.com/@...\t\t50000"}
+                placeholder={"Tài khoản\tNgười theo dõi\tLink kênh TikTok\tNgành hàng\nNguyen Van A\t50000\thttps://tiktok.com/@...\tBeauty,Lifestyle"}
                 rows={5}
                 className="font-mono text-xs"
               />
@@ -279,13 +281,12 @@ export default function KocBulkImportDialog({
                     <thead className="bg-zinc-50 border-b border-zinc-200">
                       <tr>
                         <th className="px-3 py-2 text-left font-medium text-zinc-500">#</th>
-                        <th className="px-3 py-2 text-left font-medium text-zinc-500">Tên</th>
-                        <th className="px-3 py-2 text-left font-medium text-zinc-500">TikTok</th>
-                        <th className="px-3 py-2 text-left font-medium text-zinc-500">Instagram</th>
-                        <th className="px-3 py-2 text-right font-medium text-zinc-500">Followers</th>
+                        <th className="px-3 py-2 text-left font-medium text-zinc-500">Tài khoản</th>
+                        <th className="px-3 py-2 text-right font-medium text-zinc-500">Người theo dõi</th>
+                        <th className="px-3 py-2 text-left font-medium text-zinc-500">Link kênh TikTok</th>
+                        <th className="px-3 py-2 text-left font-medium text-zinc-500">Ngành hàng</th>
                         <th className="px-3 py-2 text-left font-medium text-zinc-500">Phone</th>
                         <th className="px-3 py-2 text-left font-medium text-zinc-500">Khu vực</th>
-                        <th className="px-3 py-2 text-left font-medium text-zinc-500">Danh mục</th>
                         <th className="px-3 py-2 w-7" />
                       </tr>
                     </thead>
@@ -294,16 +295,6 @@ export default function KocBulkImportDialog({
                         <tr key={i} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
                           <td className="px-3 py-2 text-zinc-400">{row._index}</td>
                           <td className="px-3 py-2 font-medium text-zinc-900">{row.name}</td>
-                          <td className="px-3 py-2 text-zinc-500 max-w-[120px] truncate">
-                            {row.tiktok_url ? (
-                              <span title={row.tiktok_url ?? ""} className="truncate block">{row.tiktok_url}</span>
-                            ) : "—"}
-                          </td>
-                          <td className="px-3 py-2 text-zinc-500 max-w-[120px] truncate">
-                            {row.instagram_url ? (
-                              <span title={row.instagram_url ?? ""} className="truncate block">{row.instagram_url}</span>
-                            ) : "—"}
-                          </td>
                           <td className="px-3 py-2 text-right text-zinc-600">
                             {row.follower != null
                               ? row.follower >= 1000
@@ -311,11 +302,16 @@ export default function KocBulkImportDialog({
                                 : row.follower
                               : "—"}
                           </td>
-                          <td className="px-3 py-2 text-zinc-500">{row.phone ?? "—"}</td>
-                          <td className="px-3 py-2 text-zinc-500">{row.location ?? "—"}</td>
+                          <td className="px-3 py-2 text-zinc-500 max-w-[150px] truncate">
+                            {row.tiktok_url ? (
+                              <span title={row.tiktok_url ?? ""} className="truncate block">{row.tiktok_url}</span>
+                            ) : "—"}
+                          </td>
                           <td className="px-3 py-2 text-zinc-500">
                             {row.category?.join(", ") ?? "—"}
                           </td>
+                          <td className="px-3 py-2 text-zinc-500">{row.phone ?? "—"}</td>
+                          <td className="px-3 py-2 text-zinc-500">{row.location ?? "—"}</td>
                           <td className="px-3 py-2">
                             <button
                               type="button"
