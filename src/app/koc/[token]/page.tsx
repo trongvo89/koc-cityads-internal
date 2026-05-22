@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   title: "KOC CityAds",
 };
 
-const ACTION_STATUSES = ["waiting_address", "sample_sent", "waiting_video", "need_revision"] as const;
+const ACTION_STATUSES = ["client_approved", "waiting_address", "sample_sent", "sample_received", "waiting_video", "need_revision"] as const;
 type ActionStatus = (typeof ACTION_STATUSES)[number];
 
 function isActionStatus(s: string): s is ActionStatus {
@@ -51,7 +51,8 @@ export default async function KocTokenPage({
           )}
         </div>
 
-        {koc.operation_status === "waiting_address" && (
+        {(koc.operation_status === "waiting_address" ||
+          koc.operation_status === "client_approved") && (
           <AddressForm token={token} />
         )}
 
@@ -60,6 +61,7 @@ export default async function KocTokenPage({
         )}
 
         {(koc.operation_status === "waiting_video" ||
+          koc.operation_status === "sample_received" ||
           koc.operation_status === "need_revision") && (
           <VideoForm
             token={token}
