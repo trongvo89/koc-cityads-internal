@@ -8,6 +8,7 @@ import {
   Users,
   Building2,
   UserCog,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/types/enums";
@@ -19,7 +20,10 @@ const NAV_ITEMS = [
   { href: "/admin/clients", label: "Clients", icon: Building2 },
 ];
 
-const SUPER_ITEMS = [{ href: "/admin/users", label: "Users", icon: UserCog }];
+const SUPER_ITEMS = [
+  { href: "/admin/reports", label: "Thống kê", icon: BarChart3 },
+  { href: "/admin/users", label: "Users", icon: UserCog },
+];
 
 export default function SidebarNav({ role }: { role: UserRole }) {
   const pathname = usePathname();

@@ -29,6 +29,7 @@ const schema = z.object({
   campaign_name: z.string().min(1, "Tên campaign không được trống"),
   brief: z.string().optional().nullable(),
   package_size: z.number().int().min(1, "Package size tối thiểu 1"),
+  contract_value: z.number().int().min(0, "Giá trị hợp đồng không được âm"),
   start_date: z.string().optional().nullable(),
   end_date: z.string().optional().nullable(),
   status: z.enum(["draft", "active", "completed", "paused", "cancelled"]),
@@ -66,6 +67,7 @@ export default function CampaignFormDialog({ open, campaign, onClose }: Props) {
         campaign_name: campaign.campaign_name,
         brief: campaign.brief ?? undefined,
         package_size: campaign.package_size,
+        contract_value: campaign.contract_value,
         start_date: campaign.start_date ?? undefined,
         end_date: campaign.end_date ?? undefined,
         status: campaign.status,
@@ -128,25 +130,40 @@ export default function CampaignFormDialog({ open, campaign, onClose }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Trạng thái</Label>
-              <Select
-                value={selectedStatus}
-                onValueChange={(v) =>
-                  setValue("status", v as FormValues["status"], { shouldValidate: true })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Nháp</SelectItem>
-                  <SelectItem value="active">Đang chạy</SelectItem>
-                  <SelectItem value="paused">Tạm dừng</SelectItem>
-                  <SelectItem value="completed">Hoàn thành</SelectItem>
-                  <SelectItem value="cancelled">Đã hủy</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="edit_contract_value">Giá trị HĐ (VNĐ)</Label>
+              <Input
+                id="edit_contract_value"
+                type="number"
+                min={0}
+                step={1000000}
+                placeholder="0"
+                {...register("contract_value", { valueAsNumber: true })}
+              />
+              {errors.contract_value && (
+                <p className="text-xs text-red-500">{errors.contract_value.message}</p>
+              )}
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Trạng thái</Label>
+            <Select
+              value={selectedStatus}
+              onValueChange={(v) =>
+                setValue("status", v as FormValues["status"], { shouldValidate: true })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Nháp</SelectItem>
+                <SelectItem value="active">Đang chạy</SelectItem>
+                <SelectItem value="paused">Tạm dừng</SelectItem>
+                <SelectItem value="completed">Hoàn thành</SelectItem>
+                <SelectItem value="cancelled">Đã hủy</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

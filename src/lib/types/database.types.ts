@@ -153,6 +153,7 @@ export type Database = {
           campaign_id: string
           campaign_name: string
           client_id: string
+          contract_value: number
           created_at: string
           end_date: string | null
           package_size: number
@@ -165,6 +166,7 @@ export type Database = {
           campaign_id?: string
           campaign_name: string
           client_id: string
+          contract_value?: number
           created_at?: string
           end_date?: string | null
           package_size?: number
@@ -177,6 +179,7 @@ export type Database = {
           campaign_id?: string
           campaign_name?: string
           client_id?: string
+          contract_value?: number
           created_at?: string
           end_date?: string | null
           package_size?: number

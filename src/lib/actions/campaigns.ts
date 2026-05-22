@@ -18,6 +18,7 @@ export type CampaignListItem = {
   start_date: string | null;
   end_date: string | null;
   brief: string | null;
+  contract_value: number;
   created_at: string;
 };
 
@@ -74,7 +75,7 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
 
   const { data, error } = await supabase
     .from("campaigns")
-    .select("campaign_id, campaign_name, brief, status, package_size, start_date, end_date, created_at, clients(company_name)")
+    .select("campaign_id, campaign_name, brief, status, package_size, contract_value, start_date, end_date, created_at, clients(company_name)")
     .order("created_at", { ascending: false });
 
   if (error) return { success: false, error: error.message };
@@ -105,6 +106,7 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
       start_date: c.start_date,
       end_date: c.end_date,
       brief: c.brief,
+      contract_value: c.contract_value,
       created_at: c.created_at,
     })),
   };
@@ -233,6 +235,7 @@ const CampaignSchema = z.object({
   client_id: z.string().uuid("Vui lòng chọn client"),
   brief: z.string().optional().nullable(),
   package_size: z.number().int().min(1, "Package size tối thiểu 1"),
+  contract_value: z.number().int().min(0, "Giá trị hợp đồng không được âm"),
   start_date: z.string().nullable().optional(),
   end_date: z.string().nullable().optional(),
   status: z.enum(["draft", "active", "completed", "paused", "cancelled"]),
