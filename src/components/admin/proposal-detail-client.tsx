@@ -33,8 +33,10 @@ import {
   regenerateShareToken,
   convertProposalToCampaign,
 } from "@/lib/actions/proposals";
+import { createClientRecord } from "@/lib/actions/clients";
 import type { ProposalDetail, ProposalKocCard } from "@/lib/actions/proposals";
 import type { KocListItem } from "@/lib/actions/kocs";
+import ClientPicker, { type ClientPickerValue, type ClientOption } from "@/components/admin/client-picker";
 
 // ─── Tier helpers ─────────────────────────────────────────────────────────────
 
@@ -312,18 +314,26 @@ function AddKocsDialog({
 function ConvertToCampaignDialog({
   open,
   proposal,
+  allClients,
   onClose,
   onConvert,
   isPending,
 }: {
   open: boolean;
   proposal: ProposalDetail;
+  allClients: ClientOption[];
   onClose: () => void;
-  onConvert: (campaignName: string) => void;
+  onConvert: (campaignName: string, clientOverride?: ClientPickerValue) => void;
   isPending: boolean;
 }) {
   const [campaignName, setCampaignName] = useState(proposal.title);
+  const [clientOverride, setClientOverride] = useState<ClientPickerValue>(
+    proposal.client_id && proposal.client_name
+      ? { type: "existing", client_id: proposal.client_id, company_name: proposal.client_name }
+      : null
+  );
   const approvedKocs = proposal.kocs.filter((k) => k.client_status === "approved");
+  const canConvert = !!clientOverride && !!campaignName.trim();
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -333,14 +343,29 @@ function ConvertToCampaignDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {!proposal.client_id && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-md px-3 py-2 text-xs text-yellow-700">
-              ⚠️ Proposal chưa có client. Vui lòng gán client trước khi tạo campaign.
-            </div>
-          )}
+          <div>
+            <label className="text-xs font-medium text-zinc-600 block mb-1">Client *</label>
+            <ClientPicker
+              clients={allClients}
+              value={clientOverride}
+              onChange={setClientOverride}
+              disabled={isPending}
+              placeholder="Chọn hoặc tạo client..."
+            />
+            {clientOverride?.type === "new" && (
+              <p className="text-[11px] text-blue-600 mt-1">
+                ✦ Client mới &quot;{clientOverride.company_name}&quot; sẽ được tạo.
+              </p>
+            )}
+            {!clientOverride && (
+              <p className="text-[11px] text-zinc-400 mt-1">
+                Cần có client để tạo campaign.
+              </p>
+            )}
+          </div>
 
           <div>
-            <label className="text-xs font-medium text-zinc-600 block mb-1">Tên campaign</label>
+            <label className="text-xs font-medium text-zinc-600 block mb-1">Tên campaign *</label>
             <Input
               value={campaignName}
               onChange={(e) => setCampaignName(e.target.value)}
@@ -356,7 +381,7 @@ function ConvertToCampaignDialog({
             {approvedKocs.length === 0 ? (
               <p className="text-xs text-zinc-400 italic">Chưa có KOC nào được client duyệt.</p>
             ) : (
-              <div className="space-y-1 max-h-40 overflow-y-auto">
+              <div className="space-y-1 max-h-36 overflow-y-auto">
                 {approvedKocs.map((k) => (
                   <div key={k.koc_id} className="flex items-center gap-2 text-sm text-zinc-700">
                     <Check className="h-3 w-3 text-green-500 flex-shrink-0" />
@@ -371,8 +396,8 @@ function ConvertToCampaignDialog({
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isPending}>Hủy</Button>
           <Button
-            onClick={() => onConvert(campaignName)}
-            disabled={!proposal.client_id || !campaignName.trim() || isPending}
+            onClick={() => onConvert(campaignName, clientOverride ?? undefined)}
+            disabled={!canConvert || isPending}
           >
             <Rocket className="h-3.5 w-3.5 mr-1.5" />
             {isPending ? "Đang tạo..." : "Tạo Campaign"}
@@ -388,13 +413,17 @@ function ConvertToCampaignDialog({
 export default function ProposalDetailClient({
   proposal: initialProposal,
   allKocs,
+  allClients,
 }: {
   proposal: ProposalDetail;
   allKocs: KocListItem[];
+  allClients: ClientOption[];
 }) {
   const [proposal, setProposal] = useState(initialProposal);
   const [addOpen, setAddOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
+  const [editClientOpen, setEditClientOpen] = useState(false);
+  const [editClientValue, setEditClientValue] = useState<ClientPickerValue>(null);
   const [copied, setCopied] = useState(false);
   const [tokenRenewing, setTokenRenewing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -439,16 +468,65 @@ export default function ProposalDetailClient({
     });
   }
 
-  function handleConvertToCampaign(campaignName: string) {
-    if (!proposal.client_id) return;
+  function handleConvertToCampaign(campaignName: string, clientOverride?: ClientPickerValue) {
     startTransition(async () => {
+      let clientId = proposal.client_id;
+
+      if (clientOverride?.type === "existing") {
+        clientId = clientOverride.client_id;
+      } else if (clientOverride?.type === "new") {
+        const r = await createClientRecord({ company_name: clientOverride.company_name, status: "active" });
+        if (!r.success) return;
+        clientId = r.data.client_id;
+        // Also update the proposal's client_id so it persists
+        await updateProposal(proposal.proposal_id, { client_id: clientId, prospect_name: null });
+      }
+
+      if (!clientId) return;
+
       const result = await convertProposalToCampaign(proposal.proposal_id, {
         campaign_name: campaignName,
-        client_id: proposal.client_id!,
+        client_id: clientId,
       });
       if (result.success) {
         setConvertOpen(false);
         window.location.href = `/admin/campaigns`;
+      }
+    });
+  }
+
+  function handleOpenEditClient() {
+    setEditClientValue(
+      proposal.client_id && proposal.client_name
+        ? { type: "existing", client_id: proposal.client_id, company_name: proposal.client_name }
+        : null
+    );
+    setEditClientOpen(true);
+  }
+
+  function handleSaveClient() {
+    if (!editClientValue) return;
+    startTransition(async () => {
+      let clientId: string;
+      if (editClientValue.type === "existing") {
+        clientId = editClientValue.client_id;
+      } else {
+        const r = await createClientRecord({ company_name: editClientValue.company_name, status: "active" });
+        if (!r.success) return;
+        clientId = r.data.client_id;
+      }
+      const r = await updateProposal(proposal.proposal_id, {
+        client_id: clientId,
+        prospect_name: null,
+      });
+      if (r.success) {
+        setProposal((prev) => ({
+          ...prev,
+          client_id: clientId,
+          client_name: editClientValue.company_name,
+          prospect_name: null,
+        }));
+        setEditClientOpen(false);
       }
     });
   }
@@ -477,13 +555,54 @@ export default function ProposalDetailClient({
       {/* Header */}
       <div className="bg-white rounded-lg border border-zinc-200 p-5 mb-5">
         <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-zinc-900">{proposal.title}</h1>
-            {(proposal.client_name || proposal.prospect_name) && (
-              <p className="text-sm text-zinc-500 mt-0.5">
-                {proposal.client_name ?? proposal.prospect_name}
-              </p>
+
+            {/* Client row */}
+            {!editClientOpen ? (
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                {proposal.client_id ? (
+                  <span className="text-sm text-zinc-600">{proposal.client_name}</span>
+                ) : proposal.prospect_name ? (
+                  <span className="text-sm text-zinc-500 italic">{proposal.prospect_name} <span className="text-[10px] text-zinc-400">(prospect)</span></span>
+                ) : (
+                  <span className="text-sm text-zinc-400 italic">Chưa có client</span>
+                )}
+                <button
+                  onClick={handleOpenEditClient}
+                  className="text-xs text-blue-600 hover:underline hover:text-blue-700"
+                  disabled={isPending}
+                >
+                  {proposal.client_id ? "Đổi client" : "Gán client"}
+                </button>
+              </div>
+            ) : (
+              <div className="mt-2 space-y-2 max-w-sm">
+                <ClientPicker
+                  clients={allClients}
+                  value={editClientValue}
+                  onChange={setEditClientValue}
+                  disabled={isPending}
+                  placeholder="Tìm hoặc tạo client..."
+                />
+                {editClientValue?.type === "new" && (
+                  <p className="text-[11px] text-blue-600">
+                    ✦ Client mới &quot;{editClientValue.company_name}&quot; sẽ được tạo khi lưu.
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <Button size="sm" className="h-7 text-xs" onClick={handleSaveClient}
+                    disabled={!editClientValue || isPending}>
+                    {isPending ? "Đang lưu..." : "Lưu"}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs"
+                    onClick={() => setEditClientOpen(false)} disabled={isPending}>
+                    Hủy
+                  </Button>
+                </div>
+              </div>
             )}
+
             {proposal.notes && (
               <p className="text-sm text-zinc-600 mt-1.5 max-w-xl">{proposal.notes}</p>
             )}
@@ -541,7 +660,7 @@ export default function ProposalDetailClient({
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <h2 className="font-semibold text-zinc-700">{proposal.kocs.length} KOC trong proposal</h2>
         <div className="flex items-center gap-2">
-          {proposal.kocs.some((k) => k.client_status === "approved") && !proposal.linked_campaign_id && (
+          {!proposal.linked_campaign_id && proposal.kocs.length > 0 && (
             <Button size="sm" variant="outline" className="gap-1.5 text-green-700 border-green-300 hover:bg-green-50"
               onClick={() => setConvertOpen(true)} disabled={isPending}>
               <Rocket className="h-3.5 w-3.5" />
@@ -594,6 +713,7 @@ export default function ProposalDetailClient({
       <ConvertToCampaignDialog
         open={convertOpen}
         proposal={proposal}
+        allClients={allClients}
         onClose={() => setConvertOpen(false)}
         onConvert={handleConvertToCampaign}
         isPending={isPending}

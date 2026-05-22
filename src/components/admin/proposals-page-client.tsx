@@ -17,7 +17,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { createProposal, deleteProposal } from "@/lib/actions/proposals";
+import { createClientRecord } from "@/lib/actions/clients";
 import type { ProposalListItem } from "@/lib/actions/proposals";
+import ClientPicker, { type ClientPickerValue, type ClientOption } from "@/components/admin/client-picker";
 
 const STATUS_MAP: Record<string, { label: string; variant: "secondary" | "warning" | "success" | "destructive" }> = {
   draft: { label: "Nháp", variant: "secondary" },
@@ -33,34 +35,62 @@ function getShareUrl(token: string): string {
 
 export default function ProposalsPageClient({
   proposals: initialProposals,
+  clients,
 }: {
   proposals: ProposalListItem[];
+  clients: ClientOption[];
 }) {
   const router = useRouter();
   const [proposals, setProposals] = useState(initialProposals);
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
-  const [prospectName, setProspectName] = useState("");
+  const [clientValue, setClientValue] = useState<ClientPickerValue>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  function resetForm() {
+    setTitle("");
+    setNotes("");
+    setClientValue(null);
+    setFormError(null);
+  }
+
   function handleCreate() {
     if (!title.trim()) { setFormError("Tiêu đề không được trống"); return; }
     setFormError(null);
+
     startTransition(async () => {
+      let resolvedClientId: string | null = null;
+      let resolvedProspectName: string | null = null;
+
+      if (clientValue?.type === "existing") {
+        resolvedClientId = clientValue.client_id;
+      } else if (clientValue?.type === "new") {
+        // Create client record first
+        const clientResult = await createClientRecord({
+          company_name: clientValue.company_name,
+          status: "active",
+        });
+        if (!clientResult.success) {
+          setFormError(`Lỗi tạo client: ${clientResult.error}`);
+          return;
+        }
+        resolvedClientId = clientResult.data.client_id;
+      }
+
       const result = await createProposal({
         title: title.trim(),
         notes: notes || null,
-        prospect_name: prospectName || null,
+        client_id: resolvedClientId,
+        prospect_name: resolvedProspectName,
       });
+
       if (result.success) {
+        resetForm();
         setCreateOpen(false);
-        setTitle("");
-        setNotes("");
-        setProspectName("");
         router.push(`/admin/proposals/${result.data.proposal_id}`);
       } else {
         setFormError(result.error);
@@ -191,32 +221,44 @@ export default function ProposalsPageClient({
         </div>
       )}
 
-      <Dialog open={createOpen} onOpenChange={(v) => { if (!v) { setCreateOpen(false); setFormError(null); } }}>
+      {/* Create proposal dialog */}
+      <Dialog open={createOpen} onOpenChange={(v) => { if (!v) { setCreateOpen(false); resetForm(); } }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Tạo Proposal mới</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div>
               <Label htmlFor="p-title">Tiêu đề *</Label>
               <Input
                 id="p-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleCreate()}
                 placeholder="VD: KOC Pitch cho nhãn ABC - Tháng 6/2026"
                 className="mt-1"
+                autoFocus
               />
             </div>
+
             <div>
-              <Label htmlFor="p-prospect">Tên Client / Prospect</Label>
-              <Input
-                id="p-prospect"
-                value={prospectName}
-                onChange={(e) => setProspectName(e.target.value)}
-                placeholder="Tên thương hiệu hoặc người liên hệ"
-                className="mt-1"
+              <Label>Client</Label>
+              <p className="text-[11px] text-zinc-400 mb-1.5 mt-0.5">
+                Chọn client có sẵn hoặc gõ tên để tạo mới — bắt buộc nếu muốn chuyển sang Campaign.
+              </p>
+              <ClientPicker
+                clients={clients}
+                value={clientValue}
+                onChange={setClientValue}
+                disabled={isPending}
               />
+              {clientValue?.type === "new" && (
+                <p className="text-[11px] text-blue-600 mt-1">
+                  ✦ Client mới &quot;{clientValue.company_name}&quot; sẽ được tạo trong hệ thống khi bạn nhấn Tạo.
+                </p>
+              )}
             </div>
+
             <div>
               <Label htmlFor="p-notes">Ghi chú (nội bộ)</Label>
               <Textarea
@@ -228,10 +270,13 @@ export default function ProposalsPageClient({
                 placeholder="Mô tả ngắn về proposal này..."
               />
             </div>
+
             {formError && <p className="text-sm text-red-600">{formError}</p>}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={isPending}>Hủy</Button>
+            <Button variant="outline" onClick={() => { setCreateOpen(false); resetForm(); }} disabled={isPending}>
+              Hủy
+            </Button>
             <Button onClick={handleCreate} disabled={isPending || !title.trim()}>
               {isPending ? "Đang tạo..." : "Tạo & mở"}
             </Button>
