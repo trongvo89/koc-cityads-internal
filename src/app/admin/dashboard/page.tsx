@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   Activity,
-  Clock,
-  Package,
-  Video,
-  AlertCircle,
-  XCircle,
   Users,
+  Star,
+  FileText,
+  Send,
+  Clock,
+  Video,
 } from "lucide-react";
 import { getDashboardMetrics } from "@/lib/actions/dashboard";
 import MetricsCard from "@/components/admin/metrics-card";
@@ -34,60 +34,65 @@ export default async function AdminDashboardPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-zinc-900">Dashboard</h1>
-        <p className="text-zinc-500 text-sm mt-1">Tổng quan hoạt động KOC CityAds</p>
+        <p className="text-zinc-500 text-sm mt-1">Tổng quan KOC CRM</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <MetricsCard
+          title="KOC đang hoạt động"
+          value={m.totalKocs}
+          icon={Users}
+          color="blue"
+          href="/admin/kocs"
+        />
+        <MetricsCard
+          title="KOC top-rated (≥4★)"
+          value={m.topRatedKocs}
+          icon={Star}
+          color="yellow"
+          href="/admin/kocs"
+        />
+        <MetricsCard
           title="Campaigns đang chạy"
           value={m.activeCampaigns}
           icon={Activity}
-          color="blue"
+          color="green"
           href="/admin/campaigns"
         />
         <MetricsCard
           title="Chờ duyệt (Client)"
-          value={m.pendingClientApproval}
+          value={m.pendingApprovals}
           icon={Clock}
-          color="yellow"
-        />
-        <MetricsCard
-          title="Chờ địa chỉ"
-          value={m.addressWaiting}
-          icon={Users}
           color="orange"
         />
         <MetricsCard
-          title="Đã gửi hàng mẫu"
-          value={m.sampleSent}
-          icon={Package}
+          title="Proposal nháp"
+          value={m.draftProposals}
+          icon={FileText}
           color="purple"
+          href="/admin/proposals"
         />
         <MetricsCard
-          title="Video đã submit"
-          value={m.videoSubmitted}
-          icon={Video}
-          color="green"
-        />
-        <MetricsCard
-          title="Cần sửa video"
-          value={m.needRevision}
-          icon={AlertCircle}
-          color="red"
-        />
-        <MetricsCard
-          title="Thất bại / Drop"
-          value={m.failed}
-          icon={XCircle}
+          title="Proposal đã gửi"
+          value={m.sentProposals}
+          icon={Send}
           color="zinc"
+          href="/admin/proposals"
+        />
+        <MetricsCard
+          title="Video tháng này"
+          value={m.videosThisMonth}
+          icon={Video}
+          color="blue"
         />
       </div>
 
-      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="mt-8 grid grid-cols-1 sm:grid-cols-4 gap-4">
         {[
-          { href: "/admin/campaigns", label: "Campaigns", desc: "Quản lý tất cả campaigns" },
-          { href: "/admin/kocs", label: "KOCs", desc: "Quản lý danh sách KOC" },
-          { href: "/admin/clients", label: "Clients", desc: "Quản lý clients / nhãn hàng" },
+          { href: "/admin/kocs", label: "KOCs", desc: "Quản lý talent pool" },
+          { href: "/admin/proposals", label: "Proposals", desc: "Pitch KOC cho client" },
+          { href: "/admin/campaigns", label: "Campaigns", desc: "Quản lý campaigns" },
+          { href: "/admin/clients", label: "Clients", desc: "Quản lý nhãn hàng" },
         ].map((item) => (
           <Link
             key={item.href}

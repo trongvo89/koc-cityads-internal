@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Pencil, Search, Upload, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Plus, Pencil, Search, Upload, Trash2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,19 @@ import KocFormDialog from "@/components/admin/koc-form-dialog";
 import KocBulkImportDialog from "@/components/admin/koc-bulk-import-dialog";
 import { deleteKoc, bulkDeleteKocs } from "@/lib/actions/kocs";
 import type { KocListItem } from "@/lib/actions/kocs";
+
+type Tier = { label: string; className: string };
+
+function getTier(avg_rating: number | null, total_campaigns: number): Tier | null {
+  if (avg_rating === null) return null;
+  if (avg_rating >= 4.5 && total_campaigns >= 3)
+    return { label: "Platinum", className: "bg-purple-100 text-purple-700" };
+  if (avg_rating >= 3.5)
+    return { label: "Gold", className: "bg-yellow-100 text-yellow-700" };
+  if (avg_rating >= 2.5)
+    return { label: "Silver", className: "bg-zinc-100 text-zinc-600" };
+  return { label: "Bronze", className: "bg-orange-100 text-orange-700" };
+}
 
 const STATUS_VARIANT: Record<string, "success" | "secondary" | "destructive"> = {
   active: "success",
@@ -35,12 +49,19 @@ export default function KocsPageClient({ kocs: initialKocs }: { kocs: KocListIte
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  const filtered = kocs.filter(
-    (k) =>
-      k.name.toLowerCase().includes(search.toLowerCase()) ||
-      (k.phone ?? "").includes(search) ||
-      (k.category ?? []).some((c) => c.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = kocs
+    .filter(
+      (k) =>
+        k.name.toLowerCase().includes(search.toLowerCase()) ||
+        (k.phone ?? "").includes(search) ||
+        (k.category ?? []).some((c) => c.toLowerCase().includes(search.toLowerCase()))
+    )
+    .sort((a, b) => {
+      if (a.avg_rating == null && b.avg_rating == null) return 0;
+      if (a.avg_rating == null) return 1;
+      if (b.avg_rating == null) return -1;
+      return b.avg_rating - a.avg_rating;
+    });
 
   const filteredIds = new Set(filtered.map((k) => k.koc_id));
   const allFilteredSelected =
@@ -249,6 +270,9 @@ export default function KocsPageClient({ kocs: initialKocs }: { kocs: KocListIte
                   Followers
                 </th>
                 <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                  Đánh giá
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
                   Đang chạy
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
@@ -276,7 +300,22 @@ export default function KocsPageClient({ kocs: initialKocs }: { kocs: KocListIte
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-zinc-900">{k.name}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link
+                          href={`/admin/kocs/${k.koc_id}`}
+                          className="font-medium text-zinc-900 hover:text-blue-600 hover:underline"
+                        >
+                          {k.name}
+                        </Link>
+                        {(() => {
+                          const tier = getTier(k.avg_rating, k.total_campaigns);
+                          return tier ? (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${tier.className}`}>
+                              {tier.label}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                       {k.location && (
                         <div className="text-xs text-zinc-400">{k.location}</div>
                       )}
@@ -309,6 +348,16 @@ export default function KocsPageClient({ kocs: initialKocs }: { kocs: KocListIte
                           ? `${(k.follower / 1000).toFixed(0)}K`
                           : k.follower.toString()
                         : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {k.avg_rating != null ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          <span className="text-sm font-medium text-zinc-700">{k.avg_rating}</span>
+                        </div>
+                      ) : (
+                        <span className="text-zinc-400">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <span

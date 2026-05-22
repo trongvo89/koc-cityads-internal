@@ -9,6 +9,7 @@ import {
   Building2,
   UserCog,
   BarChart3,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/types/enums";
@@ -17,6 +18,7 @@ const NAV_ITEMS = [
   { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/campaigns", label: "Campaigns", icon: Megaphone },
   { href: "/admin/kocs", label: "KOCs", icon: Users },
+  { href: "/admin/proposals", label: "Proposals", icon: FileText },
   { href: "/admin/clients", label: "Clients", icon: Building2 },
 ];
 

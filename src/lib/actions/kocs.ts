@@ -19,31 +19,70 @@ export type KocListItem = {
   instagram_url: string | null;
   default_address: string | null;
   active_campaign_count: number;
+  avg_rating: number | null;
+  total_campaigns: number;
+};
+
+export type KocCampaignHistory = {
+  campaign_koc_id: string;
+  campaign_id: string;
+  campaign_name: string;
+  client_name: string;
+  start_date: string | null;
+  end_date: string | null;
+  video_url: string | null;
+  video_submitted_at: string | null;
+  client_quality_rating: number | null;
+  client_quality_review: string | null;
+  client_video_feedback: string | null;
+  final_status: string;
+  operation_status: string;
+  completed_at: string | null;
+};
+
+export type KocProfile = KocListItem & {
+  email: string | null;
+  facebook_url: string | null;
+  note: string | null;
+  completed_campaigns: number;
+  video_count: number;
+  rating_count: number;
+  history: KocCampaignHistory[];
 };
 
 export async function getKocs(): Promise<ActionResult<KocListItem[]>> {
   const supabase = await createClient();
 
-  const [{ data: kocs, error: ke }, { data: counts, error: cnte }] = await Promise.all([
-    supabase
-      .from("kocs")
-      .select(
-        "koc_id, name, category, phone, zalo, status, follower, location, tiktok_url, instagram_url, default_address"
-      )
-      .order("name"),
-    supabase.from("koc_active_campaign_counts").select("koc_id, active_campaign_count"),
-  ]);
+  const [{ data: kocs, error: ke }, { data: counts, error: cnte }, { data: perf, error: pe }] =
+    await Promise.all([
+      supabase
+        .from("kocs")
+        .select(
+          "koc_id, name, category, phone, zalo, status, follower, location, tiktok_url, instagram_url, default_address"
+        )
+        .order("name"),
+      supabase.from("koc_active_campaign_counts").select("koc_id, active_campaign_count"),
+      supabase
+        .from("koc_performance_summary")
+        .select("koc_id, avg_rating, total_campaigns"),
+    ]);
 
   if (ke) return { success: false, error: ke.message };
   if (cnte) return { success: false, error: cnte.message };
+  if (pe) return { success: false, error: pe.message };
 
   const countMap = new Map((counts ?? []).map((c) => [c.koc_id, c.active_campaign_count ?? 0]));
+  const perfMap = new Map(
+    (perf ?? []).map((p) => [p.koc_id, { avg_rating: p.avg_rating, total_campaigns: Number(p.total_campaigns ?? 0) }])
+  );
 
   return {
     success: true,
     data: (kocs ?? []).map((k) => ({
       ...k,
       active_campaign_count: countMap.get(k.koc_id) ?? 0,
+      avg_rating: perfMap.get(k.koc_id)?.avg_rating ?? null,
+      total_campaigns: perfMap.get(k.koc_id)?.total_campaigns ?? 0,
     })),
   };
 }
@@ -62,7 +101,7 @@ export async function getKocById(kocId: string): Promise<ActionResult<KocListIte
 
   return {
     success: true,
-    data: { ...data, active_campaign_count: 0 },
+    data: { ...data, active_campaign_count: 0, avg_rating: null, total_campaigns: 0 },
   };
 }
 
@@ -197,6 +236,71 @@ export async function bulkDeleteKocs(
 
   revalidatePath("/admin/kocs");
   return { success: true, data: { deleted, failed } };
+}
+
+export async function getKocProfile(kocId: string): Promise<ActionResult<KocProfile>> {
+  const supabase = await createClient();
+
+  const [{ data: koc, error: ke }, { data: perf, error: pe }, { data: history, error: he }] =
+    await Promise.all([
+      supabase
+        .from("kocs")
+        .select(
+          "koc_id, name, category, phone, zalo, email, status, follower, location, tiktok_url, instagram_url, facebook_url, default_address, note"
+        )
+        .eq("koc_id", kocId)
+        .single(),
+      supabase
+        .from("koc_performance_summary")
+        .select("avg_rating, total_campaigns, completed_campaigns, video_count, rating_count")
+        .eq("koc_id", kocId)
+        .single(),
+      supabase
+        .from("campaign_kocs")
+        .select(
+          "campaign_koc_id, video_url, video_submitted_at, client_quality_rating, client_quality_review, client_video_feedback, final_status, operation_status, completed_at, campaigns(campaign_id, campaign_name, start_date, end_date, clients(company_name))"
+        )
+        .eq("koc_id", kocId)
+        .order("created_at", { ascending: false }),
+    ]);
+
+  if (ke || !koc) return { success: false, error: ke?.message ?? "KOC not found" };
+  if (pe) return { success: false, error: pe.message };
+  if (he) return { success: false, error: he.message };
+
+  const stats = perf ?? { avg_rating: null, total_campaigns: 0, completed_campaigns: 0, video_count: 0, rating_count: 0 };
+
+  return {
+    success: true,
+    data: {
+      ...koc,
+      active_campaign_count: 0,
+      avg_rating: stats.avg_rating ?? null,
+      total_campaigns: Number(stats.total_campaigns ?? 0),
+      completed_campaigns: Number(stats.completed_campaigns ?? 0),
+      video_count: Number(stats.video_count ?? 0),
+      rating_count: Number(stats.rating_count ?? 0),
+      history: (history ?? []).map((h) => {
+        const camp = h.campaigns as { campaign_id: string; campaign_name: string; start_date: string | null; end_date: string | null; clients: { company_name: string } | null } | null;
+        return {
+          campaign_koc_id: h.campaign_koc_id,
+          campaign_id: camp?.campaign_id ?? "",
+          campaign_name: camp?.campaign_name ?? "—",
+          client_name: camp?.clients?.company_name ?? "—",
+          start_date: camp?.start_date ?? null,
+          end_date: camp?.end_date ?? null,
+          video_url: h.video_url,
+          video_submitted_at: h.video_submitted_at,
+          client_quality_rating: h.client_quality_rating,
+          client_quality_review: h.client_quality_review,
+          client_video_feedback: h.client_video_feedback,
+          final_status: h.final_status,
+          operation_status: h.operation_status,
+          completed_at: h.completed_at,
+        };
+      }),
+    },
+  };
 }
 
 // ─── Bulk import ──────────────────────────────────────────────────────────────

@@ -117,6 +117,25 @@ const OP_STATUS: Record<OperationStatus, { label: string; variant: BadgeVariant 
   failed: { label: "Thất bại", variant: "destructive" },
 };
 
+// Simplified 6-state display (collapse 15 → 6)
+const SIMPLE_STATUS: Record<OperationStatus, { label: string; variant: BadgeVariant }> = {
+  draft:               { label: "Chưa gửi", variant: "secondary" },
+  sent_to_client:      { label: "Chờ duyệt", variant: "warning" },
+  client_approved:     { label: "Đã duyệt", variant: "success" },
+  client_rejected:     { label: "Từ chối", variant: "destructive" },
+  waiting_address:     { label: "Đang chạy", variant: "info" },
+  address_submitted:   { label: "Đang chạy", variant: "info" },
+  waiting_sample_sent: { label: "Đang chạy", variant: "info" },
+  sample_sent:         { label: "Đang chạy", variant: "info" },
+  sample_received:     { label: "Đang chạy", variant: "info" },
+  waiting_video:       { label: "Chờ video", variant: "info" },
+  video_submitted:     { label: "Nộp video", variant: "info" },
+  need_revision:       { label: "Cần sửa", variant: "warning" },
+  video_approved:      { label: "Video OK", variant: "success" },
+  completed:           { label: "Hoàn thành", variant: "success" },
+  failed:              { label: "Thất bại", variant: "destructive" },
+};
+
 const ADDR_STATUS: Record<string, { label: string; variant: BadgeVariant }> = {
   waiting: { label: "Chờ", variant: "secondary" },
   submitted: { label: "Đã điền", variant: "success" },
@@ -1009,7 +1028,7 @@ export default function KocBoard({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[860px]">
+            <table className="w-full text-sm min-w-[600px]">
               <thead className="border-b border-zinc-200 bg-zinc-50">
                 <tr>
                   <th className="px-3 py-2.5 w-8">
@@ -1025,19 +1044,13 @@ export default function KocBoard({
                     KOC
                   </th>
                   <th className="text-left px-3 py-2.5 font-medium text-zinc-500 text-xs uppercase tracking-wide">
-                    Tiến độ
+                    Trạng thái
                   </th>
                   <th className="text-left px-3 py-2.5 font-medium text-zinc-500 text-xs uppercase tracking-wide">
-                    Địa chỉ
+                    Video
                   </th>
                   <th className="text-left px-3 py-2.5 font-medium text-zinc-500 text-xs uppercase tracking-wide">
-                    Hàng mẫu
-                  </th>
-                  <th className="text-left px-3 py-2.5 font-medium text-zinc-500 text-xs uppercase tracking-wide">
-                    Content
-                  </th>
-                  <th className="text-left px-3 py-2.5 font-medium text-zinc-500 text-xs uppercase tracking-wide">
-                    Duyệt
+                    Client
                   </th>
                   <th className="px-3 py-2.5 w-10" />
                 </tr>
@@ -1073,7 +1086,7 @@ export default function KocBoard({
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex flex-col gap-0.5">
-                          <StatusBadge map={OP_STATUS} value={koc.operation_status} />
+                          <StatusBadge map={SIMPLE_STATUS} value={koc.operation_status} />
                           {koc.operation_status === "need_revision" && koc.revision_note && (
                             <span
                               className="text-xs text-zinc-400 leading-tight max-w-[160px] truncate"
@@ -1083,24 +1096,6 @@ export default function KocBoard({
                             </span>
                           )}
                         </div>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <div className="flex flex-col gap-0.5">
-                          <StatusBadge map={ADDR_STATUS} value={koc.address_status} />
-                          {koc.address_status === "submitted" && koc.receiver_name && (
-                            <div className="text-xs text-zinc-500 leading-tight space-y-0.5">
-                              <div className="font-medium text-zinc-700">{koc.receiver_name}</div>
-                              {koc.receiver_phone && <div>{koc.receiver_phone}</div>}
-                              {koc.receiver_address && (
-                                <div className="max-w-[180px] break-words">{koc.receiver_address}</div>
-                              )}
-                              {koc.receiver_province && <div className="text-zinc-400">{koc.receiver_province}</div>}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-2.5">
-                        <StatusBadge map={SAMPLE_STATUS} value={koc.sample_status} />
                       </td>
                       <td className="px-3 py-2.5">
                         <div className="flex flex-col gap-0.5">
@@ -1131,14 +1126,6 @@ export default function KocBoard({
                               ))}
                               <span className="text-xs text-zinc-400 ml-0.5">{koc.client_quality_rating}/5</span>
                             </div>
-                          )}
-                          {koc.client_video_feedback && (
-                            <span
-                              className="text-xs text-zinc-500 leading-tight max-w-[180px] truncate"
-                              title={koc.client_video_feedback}
-                            >
-                              {koc.client_video_feedback}
-                            </span>
                           )}
                         </div>
                       </td>

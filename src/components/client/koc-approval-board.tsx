@@ -10,8 +10,6 @@ import {
   ChevronDown,
   ChevronUp,
   Star,
-  Send,
-  MessageSquare,
   Check,
   Truck,
   PackageCheck,
@@ -23,7 +21,6 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   approveKoc,
-  submitVideoFeedback,
   rateKoc,
 } from "@/lib/actions/client-campaigns";
 import type { ClientKocRow } from "@/lib/actions/client-campaigns";
@@ -265,108 +262,6 @@ function StarRating({
   );
 }
 
-// ─── Video feedback section ───────────────────────────────────────────────────
-
-function VideoFeedbackSection({
-  koc,
-  campaignId,
-}: {
-  koc: ClientKocRow;
-  campaignId: string;
-}) {
-  const [feedback, setFeedback] = useState(koc.client_video_feedback ?? "");
-  const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const [savedAt, setSavedAt] = useState<string | null>(
-    koc.client_video_feedback_at
-  );
-  const [editing, setEditing] = useState(!koc.client_video_feedback);
-
-  function handleSave() {
-    setError(null);
-    startTransition(async () => {
-      const result = await submitVideoFeedback(
-        koc.campaign_koc_id,
-        campaignId,
-        feedback
-      );
-      if (result.success) {
-        setSavedAt(new Date().toISOString());
-        setEditing(false);
-      } else {
-        setError(result.error);
-      }
-    });
-  }
-
-  return (
-    <div className="mt-3 pt-3 border-t border-zinc-100">
-      <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-700 mb-2">
-        <MessageSquare className="h-3.5 w-3.5" />
-        Feedback cho video
-      </div>
-
-      {!editing && koc.client_video_feedback ? (
-        <div className="space-y-2">
-          <div className="rounded-lg bg-zinc-50 border border-zinc-200 px-3 py-2 text-sm text-zinc-700 whitespace-pre-wrap">
-            {koc.client_video_feedback}
-          </div>
-          <div className="flex items-center justify-between text-xs text-zinc-400">
-            {savedAt && (
-              <span>
-                Đã gửi {new Date(savedAt).toLocaleString("vi-VN")}
-              </span>
-            )}
-            <button
-              type="button"
-              className="text-blue-600 hover:underline"
-              onClick={() => setEditing(true)}
-            >
-              Chỉnh sửa
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <Textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder="Ví dụ: Phần intro chưa nổi bật sản phẩm, có thể thêm cận cảnh ở giây 0:08..."
-            rows={3}
-            className="text-sm"
-          />
-          {error && <p className="text-xs text-red-500">{error}</p>}
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={isPending || !feedback.trim()}
-              className="gap-1.5"
-            >
-              <Send className="h-3.5 w-3.5" />
-              {isPending ? "Đang gửi..." : "Gửi feedback"}
-            </Button>
-            {koc.client_video_feedback && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setFeedback(koc.client_video_feedback ?? "");
-                  setEditing(false);
-                  setError(null);
-                }}
-                disabled={isPending}
-              >
-                Hủy
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Rating section ───────────────────────────────────────────────────────────
 
 function RatingSection({
@@ -548,16 +443,7 @@ function KocCard({
     ? CONTENT_STATUS_MAP[koc.content_status]
     : null;
 
-  // Video feedback allowed once KOC has actually submitted a video.
-  const canFeedbackVideo =
-    isApproved &&
-    !!koc.video_url &&
-    (koc.operation_status === "video_submitted" ||
-      koc.operation_status === "need_revision" ||
-      koc.operation_status === "video_approved" ||
-      koc.operation_status === "completed");
-
-  // Rating opens once video is approved.
+  // Rating opens once video is approved or completed.
   const canRate =
     isApproved &&
     (koc.operation_status === "video_approved" ||
@@ -694,11 +580,6 @@ function KocCard({
 
       {/* Progress timeline for approved KOCs */}
       {isApproved && <ProgressTimeline koc={koc} />}
-
-      {/* Video feedback (once video submitted) */}
-      {canFeedbackVideo && (
-        <VideoFeedbackSection koc={koc} campaignId={campaignId} />
-      )}
 
       {/* Rating (once video approved or completed) */}
       {canRate && <RatingSection koc={koc} campaignId={campaignId} />}

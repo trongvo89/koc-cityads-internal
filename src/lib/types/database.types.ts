@@ -142,6 +142,13 @@ export type Database = {
             foreignKeyName: "campaign_kocs_koc_id_fkey"
             columns: ["koc_id"]
             isOneToOne: false
+            referencedRelation: "koc_performance_summary"
+            referencedColumns: ["koc_id"]
+          },
+          {
+            foreignKeyName: "campaign_kocs_koc_id_fkey"
+            columns: ["koc_id"]
+            isOneToOne: false
             referencedRelation: "kocs"
             referencedColumns: ["koc_id"]
           },
@@ -376,6 +383,102 @@ export type Database = {
           },
         ]
       }
+      proposal_kocs: {
+        Row: {
+          created_at: string
+          koc_id: string
+          notes: string | null
+          ordering: number
+          proposal_id: string
+          proposal_koc_id: string
+        }
+        Insert: {
+          created_at?: string
+          koc_id: string
+          notes?: string | null
+          ordering?: number
+          proposal_id: string
+          proposal_koc_id?: string
+        }
+        Update: {
+          created_at?: string
+          koc_id?: string
+          notes?: string | null
+          ordering?: number
+          proposal_id?: string
+          proposal_koc_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposal_kocs_koc_id_fkey"
+            columns: ["koc_id"]
+            isOneToOne: false
+            referencedRelation: "koc_performance_summary"
+            referencedColumns: ["koc_id"]
+          },
+          {
+            foreignKeyName: "proposal_kocs_koc_id_fkey"
+            columns: ["koc_id"]
+            isOneToOne: false
+            referencedRelation: "kocs"
+            referencedColumns: ["koc_id"]
+          },
+          {
+            foreignKeyName: "proposal_kocs_proposal_id_fkey"
+            columns: ["proposal_id"]
+            isOneToOne: false
+            referencedRelation: "proposals"
+            referencedColumns: ["proposal_id"]
+          },
+        ]
+      }
+      proposals: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          created_by: string | null
+          notes: string | null
+          proposal_id: string
+          prospect_name: string | null
+          share_token: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          notes?: string | null
+          proposal_id?: string
+          prospect_name?: string | null
+          share_token?: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          notes?: string | null
+          proposal_id?: string
+          prospect_name?: string | null
+          share_token?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "proposals_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["client_id"]
+          },
+        ]
+      }
     }
     Views: {
       client_campaign_kocs_view: {
@@ -417,6 +520,13 @@ export type Database = {
             foreignKeyName: "campaign_kocs_koc_id_fkey"
             columns: ["koc_id"]
             isOneToOne: false
+            referencedRelation: "koc_performance_summary"
+            referencedColumns: ["koc_id"]
+          },
+          {
+            foreignKeyName: "campaign_kocs_koc_id_fkey"
+            columns: ["koc_id"]
+            isOneToOne: false
             referencedRelation: "kocs"
             referencedColumns: ["koc_id"]
           },
@@ -432,10 +542,28 @@ export type Database = {
             foreignKeyName: "campaign_kocs_koc_id_fkey"
             columns: ["koc_id"]
             isOneToOne: false
+            referencedRelation: "koc_performance_summary"
+            referencedColumns: ["koc_id"]
+          },
+          {
+            foreignKeyName: "campaign_kocs_koc_id_fkey"
+            columns: ["koc_id"]
+            isOneToOne: false
             referencedRelation: "kocs"
             referencedColumns: ["koc_id"]
           },
         ]
+      }
+      koc_performance_summary: {
+        Row: {
+          avg_rating: number | null
+          completed_campaigns: number | null
+          koc_id: string | null
+          rating_count: number | null
+          total_campaigns: number | null
+          video_count: number | null
+        }
+        Relationships: []
       }
     }
     Functions: {
@@ -482,6 +610,7 @@ export type Database = {
           sample_status: Database["public"]["Enums"]["sample_status"]
         }[]
       }
+      get_proposal_by_token: { Args: { p_token: string }; Returns: Json }
       is_admin: { Args: never; Returns: boolean }
       is_admin_or_super_admin: { Args: never; Returns: boolean }
       is_client: { Args: never; Returns: boolean }
