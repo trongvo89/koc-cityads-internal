@@ -168,6 +168,37 @@ export async function updateKoc(
   return { success: true, data: undefined };
 }
 
+export async function deleteKoc(kocId: string): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.from("kocs").delete().eq("koc_id", kocId);
+  if (error) {
+    const msg = error.message.includes("foreign key")
+      ? "KOC đang trong campaign, không thể xóa."
+      : error.message;
+    return { success: false, error: msg };
+  }
+  revalidatePath("/admin/kocs");
+  return { success: true, data: undefined };
+}
+
+export async function bulkDeleteKocs(
+  kocIds: string[]
+): Promise<ActionResult<{ deleted: number; failed: number }>> {
+  if (kocIds.length === 0) return { success: false, error: "Không có KOC nào được chọn." };
+  const supabase = await createClient();
+
+  let deleted = 0;
+  let failed = 0;
+  for (const id of kocIds) {
+    const { error } = await supabase.from("kocs").delete().eq("koc_id", id);
+    if (error) failed++;
+    else deleted++;
+  }
+
+  revalidatePath("/admin/kocs");
+  return { success: true, data: { deleted, failed } };
+}
+
 // ─── Bulk import ──────────────────────────────────────────────────────────────
 
 export type BulkKocRow = {
