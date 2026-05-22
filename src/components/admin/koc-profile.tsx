@@ -23,13 +23,13 @@ function getTier(avg_rating: number | null, total_campaigns: number): Tier | nul
   return { label: "Bronze", className: "bg-orange-100 text-orange-700 border border-orange-200" };
 }
 
-function Stars({ value, size = 4 }: { value: number; size?: number }) {
+function Stars({ value }: { value: number }) {
   return (
     <div className="flex items-center gap-0.5">
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
-          className={`h-${size} w-${size} ${i < value ? "fill-yellow-400 text-yellow-400" : "text-zinc-300"}`}
+          className={`h-4 w-4 ${i < value ? "fill-yellow-400 text-yellow-400" : "text-zinc-300"}`}
         />
       ))}
     </div>
@@ -269,7 +269,7 @@ export default function KocProfileClient({ koc }: { koc: KocProfile }) {
                       <td className="px-4 py-3">
                         {h.client_quality_rating != null ? (
                           <div className="flex items-center gap-1">
-                            <Stars value={h.client_quality_rating} size={3} />
+                            <Stars value={h.client_quality_rating} />
                             <span className="text-xs text-zinc-500">{h.client_quality_rating}/5</span>
                           </div>
                         ) : (

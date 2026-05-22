@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,9 +42,9 @@ export default function MetricsCard({
 
   if (href) {
     return (
-      <a href={href} className="block">
+      <Link href={href} className="block">
         {content}
-      </a>
+      </Link>
     );
   }
   return content;

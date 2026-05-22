@@ -94,9 +94,30 @@ export async function getProposalDetail(proposalId: string): Promise<ActionResul
 
   if (error || !data) return { success: false, error: error?.message ?? "Not found" };
 
+  // Fetch performance stats for KOCs in this proposal
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const kocIds = (data.proposal_kocs as any[] ?? []).map((pk: any) => pk.koc_id as string);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let perfMap = new Map<string, { avg_rating: number | null; total_campaigns: number; video_count: number }>();
+  if (kocIds.length > 0) {
+    const { data: perf } = await supabase
+      .from("koc_performance_summary")
+      .select("koc_id, avg_rating, total_campaigns, video_count")
+      .in("koc_id", kocIds);
+    if (perf) {
+      perfMap = new Map(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (perf as any[]).map((p) => [
+          p.koc_id as string,
+          { avg_rating: p.avg_rating, total_campaigns: Number(p.total_campaigns ?? 0), video_count: Number(p.video_count ?? 0) },
+        ])
+      );
+    }
+  }
+
   return {
     success: true,
-    data: buildProposalDetail(data),
+    data: buildProposalDetail(data, perfMap),
   };
 }
 
@@ -284,11 +305,12 @@ export async function regenerateShareToken(
 // ─── Internal helper ──────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildProposalDetail(data: any): ProposalDetail {
+function buildProposalDetail(data: any, perfMap?: Map<string, { avg_rating: number | null; total_campaigns: number; video_count: number }>): ProposalDetail {
   const kocs: ProposalKocCard[] = (data.proposal_kocs ?? []).map(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (pk: any) => {
       const koc = pk.kocs ?? {};
+      const perf = perfMap?.get(pk.koc_id) ?? { avg_rating: null, total_campaigns: 0, video_count: 0 };
       return {
         proposal_koc_id: pk.proposal_koc_id,
         koc_id: pk.koc_id,
@@ -297,9 +319,9 @@ function buildProposalDetail(data: any): ProposalDetail {
         follower: koc.follower ?? null,
         tiktok_url: koc.tiktok_url ?? null,
         instagram_url: koc.instagram_url ?? null,
-        avg_rating: koc.avg_rating ?? null,
-        total_campaigns: Number(koc.total_campaigns ?? 0),
-        video_count: Number(koc.video_count ?? 0),
+        avg_rating: perf.avg_rating,
+        total_campaigns: perf.total_campaigns,
+        video_count: perf.video_count,
         notes: pk.notes ?? null,
         ordering: pk.ordering ?? 0,
       };
