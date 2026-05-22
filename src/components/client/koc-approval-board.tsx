@@ -7,6 +7,7 @@ import {
   ExternalLink,
   TrendingUp,
   MapPin,
+  Package,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -215,6 +216,37 @@ function KocCard({
         <div className="mt-3 text-xs text-zinc-500 bg-zinc-50 rounded px-3 py-2">
           <span className="font-medium">Lý do: </span>
           {koc.client_note ?? rejectNote}
+        </div>
+      )}
+
+      {/* Shipping address for approved KOCs */}
+      {isApproved && koc.receiver_address && (
+        <div className="mt-3 pt-3 border-t border-green-100">
+          <div className="flex items-start gap-2 text-xs">
+            <Package className="h-3.5 w-3.5 text-green-600 mt-0.5 flex-shrink-0" />
+            <div className="space-y-0.5">
+              <p className="font-semibold text-green-700">Địa chỉ gửi sản phẩm</p>
+              {koc.receiver_name && (
+                <p className="text-zinc-700 font-medium">{koc.receiver_name}</p>
+              )}
+              {koc.receiver_phone && (
+                <p className="text-zinc-600">{koc.receiver_phone}</p>
+              )}
+              <p className="text-zinc-600">{koc.receiver_address}</p>
+              {koc.receiver_province && (
+                <p className="text-zinc-500">{koc.receiver_province}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isApproved && !koc.receiver_address && (
+        <div className="mt-3 pt-3 border-t border-green-100">
+          <p className="text-xs text-zinc-400 italic flex items-center gap-1.5">
+            <Package className="h-3.5 w-3.5" />
+            Địa chỉ nhận hàng đang chờ KOC cập nhật.
+          </p>
         </div>
       )}
 

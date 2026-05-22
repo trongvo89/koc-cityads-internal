@@ -34,6 +34,10 @@ export type ClientKocRow = {
   client_note: string | null;
   video_url: string | null;
   deadline_date: string | null;
+  receiver_name: string | null;
+  receiver_phone: string | null;
+  receiver_address: string | null;
+  receiver_province: string | null;
 };
 
 export type ClientCampaignDetail = {
@@ -162,6 +166,10 @@ export async function getClientCampaignDetail(
         client_note: r.client_note,
         video_url: r.video_url,
         deadline_date: r.deadline_date,
+        receiver_name: r.receiver_name,
+        receiver_phone: r.receiver_phone,
+        receiver_address: r.receiver_address,
+        receiver_province: r.receiver_province,
       })),
     },
   };

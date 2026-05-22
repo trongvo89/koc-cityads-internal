@@ -360,6 +360,10 @@ export type Database = {
           koc_id: string | null
           location: string | null
           name: string | null
+          receiver_address: string | null
+          receiver_name: string | null
+          receiver_phone: string | null
+          receiver_province: string | null
           tiktok_url: string | null
           video_url: string | null
         }
