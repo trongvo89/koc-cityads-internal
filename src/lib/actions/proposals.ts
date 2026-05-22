@@ -370,6 +370,13 @@ export async function submitKocReview(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const res = data as any;
   if (!res?.success) return { success: false, error: res?.error ?? "Lỗi không xác định" };
+
+  // RPC returns campaign_id when it auto-added the KOC to an existing campaign
+  if (res.campaign_id) {
+    revalidatePath(`/admin/campaigns/${res.campaign_id}`);
+    revalidatePath("/admin/campaigns");
+  }
+
   return { success: true, data: undefined };
 }
 
