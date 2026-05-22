@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo, useEffect } from "react";
 import {
   Plus, Trash2, MoreHorizontal, ExternalLink, RefreshCw,
-  Search, Send, Copy, Check, CheckCheck,
+  Search, Send, Copy, Check, CheckCheck, MapPin,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ import {
   updateCampaignKocStatus,
   renewMagicLink,
   markAsReminded,
+  adminUpdateAddress,
 } from "@/lib/actions/campaigns";
 import type { CampaignDetail, CampaignKocRow } from "@/lib/actions/campaigns";
 import type { NotificationType, OperationStatus, SampleStatus } from "@/lib/types/enums";
@@ -48,20 +49,14 @@ function getAppUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 }
 
-// Statuses where KOC needs to take action via the magic link
+// Statuses where KOC needs to submit video via the magic link
 const LINK_ACTIONABLE: ReadonlySet<OperationStatus> = new Set([
-  "client_approved",
-  "waiting_address",
-  "sample_sent",
-  "sample_received",
   "waiting_video",
   "need_revision",
 ]);
 
 // After admin changes to these statuses, auto-prompt to send link
 const AUTO_PROMPT_STATUSES: ReadonlySet<OperationStatus> = new Set([
-  "waiting_address",
-  "sample_sent",
   "waiting_video",
   "need_revision",
 ]);
@@ -71,34 +66,11 @@ function buildZaloMessage(
   campaignName: string,
   status: OperationStatus,
   token: string,
-  expiresAt: string,
   deadlineDate: string | null,
   revisionNote: string | null
 ): { message: string; type: NotificationType } {
   const link = `${getAppUrl()}/koc/${token}`;
-  const expiry = new Date(expiresAt).toLocaleDateString("vi-VN");
 
-  if (status === "waiting_address" || status === "client_approved") {
-    return {
-      type: "address_request",
-      message: `Chào ${kocName} 😊\n\nBạn đã được CityAds chọn tham gia campaign "${campaignName}".\n\nĐể gửi hàng mẫu, mình cần bạn điền thông tin địa chỉ nhận hàng tại đây:\n👉 ${link}\n(Link có hiệu lực đến ${expiry})\n\nCảm ơn bạn! 🙏`,
-    };
-  }
-  if (status === "sample_sent") {
-    return {
-      type: "sample_check",
-      message: `Chào ${kocName} 😊\n\nHàng mẫu của campaign "${campaignName}" đã được gửi đến bạn rồi nhé!\n\nVui lòng xác nhận đã nhận hàng tại đây:\n👉 ${link}\n\nCảm ơn bạn! 🙏`,
-    };
-  }
-  if (status === "waiting_video" || status === "sample_received") {
-    const deadline = deadlineDate
-      ? `\n(Deadline: ${new Date(deadlineDate).toLocaleDateString("vi-VN")})`
-      : "";
-    return {
-      type: "video_brief",
-      message: `Chào ${kocName} 😊\n\nCảm ơn bạn đã nhận hàng mẫu từ campaign "${campaignName}"!\n\nSau khi quay video, vui lòng submit link tại đây:\n👉 ${link}${deadline}\n\nCảm ơn bạn! 🙏`,
-    };
-  }
   if (status === "need_revision") {
     const note = revisionNote ? `\n📝 ${revisionNote}\n` : "";
     return {
@@ -106,9 +78,14 @@ function buildZaloMessage(
       message: `Chào ${kocName} 😊\n\nVideo của bạn trong campaign "${campaignName}" cần được chỉnh sửa:${note}\nVui lòng submit lại tại đây:\n👉 ${link}\n\nCảm ơn bạn! 🙏`,
     };
   }
+
+  // Default: video submission request (waiting_video)
+  const deadline = deadlineDate
+    ? `\n(Deadline: ${new Date(deadlineDate).toLocaleDateString("vi-VN")})`
+    : "";
   return {
-    type: "custom",
-    message: `Chào ${kocName} 😊\n\nLink của bạn trong campaign "${campaignName}":\n👉 ${link}\n\nCảm ơn! 🙏`,
+    type: "video_brief",
+    message: `Chào ${kocName} 😊\n\nCảm ơn bạn đã nhận hàng mẫu từ campaign "${campaignName}"!\n\nSau khi quay video, vui lòng submit link tại đây:\n👉 ${link}${deadline}\n\nCảm ơn bạn! 🙏`,
   };
 }
 
@@ -204,7 +181,6 @@ function SendLinkDialog({
       campaignName,
       target.effectiveStatus,
       target.koc.magic_link_token,
-      target.koc.magic_link_expires_at,
       target.koc.deadline_date,
       target.koc.revision_note
     );
@@ -212,10 +188,6 @@ function SendLinkDialog({
   }, [target, campaignName]);
 
   const STATUS_LABEL: Partial<Record<OperationStatus, string>> = {
-    waiting_address: "Điền địa chỉ",
-    client_approved: "Điền địa chỉ",
-    sample_sent: "Xác nhận nhận hàng",
-    sample_received: "Nộp video",
     waiting_video: "Nộp video",
     need_revision: "Nộp lại video",
   };
@@ -228,7 +200,9 @@ function SendLinkDialog({
   }
 
   function handleOpenZalo() {
-    window.open("https://chat.zalo.me/", "_blank");
+    if (!target) return;
+    const id = target.koc.koc_zalo || target.koc.koc_phone;
+    window.open(id ? `https://zalo.me/${id}` : "https://chat.zalo.me/", "_blank");
   }
 
   function handleRenewLink() {
@@ -246,7 +220,6 @@ function SendLinkDialog({
       campaignName,
       target.effectiveStatus,
       target.koc.magic_link_token,
-      target.koc.magic_link_expires_at,
       target.koc.deadline_date,
       target.koc.revision_note
     );
@@ -374,6 +347,7 @@ function KocActionMenu({
   onNeedRevision,
   onRenewLink,
   onSendLink,
+  onEditAddress,
 }: {
   koc: CampaignKocRow;
   campaignId: string;
@@ -381,6 +355,7 @@ function KocActionMenu({
   onNeedRevision: (id: string) => void;
   onRenewLink: (id: string) => void;
   onSendLink: (koc: CampaignKocRow, status: OperationStatus) => void;
+  onEditAddress: (koc: CampaignKocRow) => void;
 }) {
   const isExpired = new Date(koc.magic_link_expires_at) < new Date();
 
@@ -432,13 +407,12 @@ function KocActionMenu({
           </>
         )}
         {(koc.operation_status === "client_approved" ||
-          koc.operation_status === "address_submitted") && (
-          <DropdownMenuItem
-            onClick={() =>
-              onAction(koc.campaign_koc_id, { operation_status: "waiting_address" })
-            }
-          >
-            Gửi link địa chỉ
+          koc.operation_status === "waiting_address" ||
+          koc.operation_status === "address_submitted" ||
+          koc.operation_status === "waiting_sample_sent") && (
+          <DropdownMenuItem onClick={() => onEditAddress(koc)}>
+            <MapPin className="h-3.5 w-3.5 mr-2" />
+            {koc.address_status === "submitted" ? "Sửa địa chỉ" : "Nhập địa chỉ"}
           </DropdownMenuItem>
         )}
         {koc.operation_status === "address_submitted" && (
@@ -741,6 +715,117 @@ function AddKocsDialog({
   );
 }
 
+// ─── Address Dialog ────────────────────────────────────────────────────────────
+
+function AddressDialog({
+  target,
+  campaignId,
+  onClose,
+}: {
+  target: CampaignKocRow | null;
+  campaignId: string;
+  onClose: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [formError, setFormError] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [province, setProvince] = useState("");
+
+  useEffect(() => {
+    if (target) {
+      setName(target.receiver_name ?? "");
+      setPhone(target.receiver_phone ?? "");
+      setAddress(target.receiver_address ?? "");
+      setProvince(target.receiver_province ?? "");
+      setFormError(null);
+    }
+  }, [target]);
+
+  function handleSave() {
+    if (!target) return;
+    if (!name.trim()) { setFormError("Tên người nhận không được trống"); return; }
+    setFormError(null);
+    startTransition(async () => {
+      const result = await adminUpdateAddress(target.campaign_koc_id, campaignId, {
+        receiver_name: name.trim(),
+        receiver_phone: phone.trim() || null,
+        receiver_address: address.trim() || null,
+        receiver_province: province.trim() || null,
+      });
+      if (result.success) {
+        onClose();
+      } else {
+        setFormError(result.error);
+      }
+    });
+  }
+
+  return (
+    <Dialog open={!!target} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-zinc-500" />
+            {target?.address_status === "submitted" ? "Sửa địa chỉ" : "Nhập địa chỉ"}{target ? ` — ${target.koc_name}` : ""}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label htmlFor="addr-name">Tên người nhận *</Label>
+            <Input
+              id="addr-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1"
+              placeholder="Nguyễn Văn A"
+            />
+          </div>
+          <div>
+            <Label htmlFor="addr-phone">Số điện thoại</Label>
+            <Input
+              id="addr-phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="mt-1"
+              placeholder="0901234567"
+            />
+          </div>
+          <div>
+            <Label htmlFor="addr-address">Địa chỉ</Label>
+            <Textarea
+              id="addr-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="mt-1"
+              rows={2}
+              placeholder="123 Đường ABC, Phường XYZ, Quận 1"
+            />
+          </div>
+          <div>
+            <Label htmlFor="addr-province">Tỉnh/Thành phố</Label>
+            <Input
+              id="addr-province"
+              value={province}
+              onChange={(e) => setProvince(e.target.value)}
+              className="mt-1"
+              placeholder="Hồ Chí Minh"
+            />
+          </div>
+          {formError && <p className="text-sm text-red-600">{formError}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>Hủy</Button>
+          <Button onClick={handleSave} disabled={isPending}>
+            {isPending ? "Đang lưu..." : "Lưu địa chỉ"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main KocBoard ─────────────────────────────────────────────────────────────
 
 export default function KocBoard({
@@ -762,6 +847,9 @@ export default function KocBoard({
 
   // Send link dialog
   const [sendLinkTarget, setSendLinkTarget] = useState<SendLinkTarget | null>(null);
+
+  // Address dialog
+  const [addressTarget, setAddressTarget] = useState<CampaignKocRow | null>(null);
 
   const assignedKocIds = new Set(campaign.kocs.map((k) => k.koc_id));
   const availableKocs = allKocs.filter((k) => !assignedKocIds.has(k.koc_id));
@@ -1053,6 +1141,7 @@ export default function KocBoard({
                             onNeedRevision={setRevisionTargetId}
                             onRenewLink={handleRenewLink}
                             onSendLink={handleSendLink}
+                            onEditAddress={setAddressTarget}
                           />
                           <Button
                             variant="ghost"
@@ -1133,6 +1222,13 @@ export default function KocBoard({
         campaignName={campaign.campaign_name}
         campaignId={campaign.campaign_id}
         onClose={() => setSendLinkTarget(null)}
+      />
+
+      {/* Address Dialog */}
+      <AddressDialog
+        target={addressTarget}
+        campaignId={campaign.campaign_id}
+        onClose={() => setAddressTarget(null)}
       />
     </div>
   );

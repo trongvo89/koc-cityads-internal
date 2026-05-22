@@ -27,6 +27,8 @@ export type CampaignKocRow = {
   koc_id: string;
   koc_name: string;
   koc_category: string[] | null;
+  koc_phone: string | null;
+  koc_zalo: string | null;
   operation_status: OperationStatus;
   address_status: string;
   sample_status: SampleStatus;
@@ -60,6 +62,8 @@ export type CampaignDetail = {
 export type ReminderKoc = {
   campaign_koc_id: string;
   koc_name: string;
+  koc_phone: string | null;
+  koc_zalo: string | null;
   operation_status: OperationStatus;
   magic_link_token: string;
   magic_link_expires_at: string;
@@ -128,7 +132,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: kocs, error: ke } = await supabase
     .from("campaign_kocs")
     .select(
-      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, kocs(name, category)"
+      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, kocs(name, category, phone, zalo)"
     )
     .eq("campaign_id", id)
     .order("created_at", { ascending: true });
@@ -147,12 +151,15 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
       package_size: campaign.package_size,
       start_date: campaign.start_date,
       end_date: campaign.end_date,
-      kocs: (kocs ?? []).map((k) => ({
+      kocs: (kocs ?? []).map((k) => {
+        const kocData = k.kocs as { name: string; category: string[] | null; phone: string | null; zalo: string | null } | null;
+        return {
         campaign_koc_id: k.campaign_koc_id,
         koc_id: k.koc_id,
-        koc_name: (k.kocs as { name: string; category: string[] | null } | null)?.name ?? "?",
-        koc_category:
-          (k.kocs as { name: string; category: string[] | null } | null)?.category ?? null,
+        koc_name: kocData?.name ?? "?",
+        koc_category: kocData?.category ?? null,
+        koc_phone: kocData?.phone ?? null,
+        koc_zalo: kocData?.zalo ?? null,
         operation_status: k.operation_status,
         address_status: k.address_status,
         sample_status: k.sample_status,
@@ -168,7 +175,8 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
         internal_note: k.internal_note,
         revision_note: k.revision_note,
         deadline_date: k.deadline_date,
-      })),
+        };
+      }),
     },
   };
 }
@@ -189,7 +197,7 @@ export async function getCampaignReminders(
   const { data: kocs, error: ke } = await supabase
     .from("campaign_kocs")
     .select(
-      "campaign_koc_id, operation_status, magic_link_token, magic_link_expires_at, deadline_date, revision_note, kocs(name)"
+      "campaign_koc_id, operation_status, magic_link_token, magic_link_expires_at, deadline_date, revision_note, kocs(name, phone, zalo)"
     )
     .eq("campaign_id", campaignId)
     .order("created_at", { ascending: true });
@@ -214,16 +222,21 @@ export async function getCampaignReminders(
     success: true,
     data: {
       campaign_name: campaign.campaign_name,
-      kocs: (kocs ?? []).map((k) => ({
-        campaign_koc_id: k.campaign_koc_id,
-        koc_name: (k.kocs as { name: string } | null)?.name ?? "?",
-        operation_status: k.operation_status,
-        magic_link_token: k.magic_link_token,
-        magic_link_expires_at: k.magic_link_expires_at,
-        deadline_date: k.deadline_date,
-        revision_note: k.revision_note,
-        reminder_count: notifCountMap.get(k.campaign_koc_id) ?? 0,
-      })),
+      kocs: (kocs ?? []).map((k) => {
+        const kocData = k.kocs as { name: string; phone: string | null; zalo: string | null } | null;
+        return {
+          campaign_koc_id: k.campaign_koc_id,
+          koc_name: kocData?.name ?? "?",
+          koc_phone: kocData?.phone ?? null,
+          koc_zalo: kocData?.zalo ?? null,
+          operation_status: k.operation_status,
+          magic_link_token: k.magic_link_token,
+          magic_link_expires_at: k.magic_link_expires_at,
+          deadline_date: k.deadline_date,
+          revision_note: k.revision_note,
+          reminder_count: notifCountMap.get(k.campaign_koc_id) ?? 0,
+        };
+      }),
     },
   };
 }
@@ -388,6 +401,45 @@ export async function updateCampaignKocStatus(
   const { error } = await supabase
     .from("campaign_kocs")
     .update(updates)
+    .eq("campaign_koc_id", campaignKocId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  return { success: true, data: undefined };
+}
+
+export async function adminUpdateAddress(
+  campaignKocId: string,
+  campaignId: string,
+  data: {
+    receiver_name: string;
+    receiver_phone: string | null;
+    receiver_address: string | null;
+    receiver_province: string | null;
+  }
+): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const { data: current } = await supabase
+    .from("campaign_kocs")
+    .select("operation_status")
+    .eq("campaign_koc_id", campaignKocId)
+    .single();
+
+  const preAddressStatuses = new Set(["client_approved", "waiting_address"]);
+  const shouldAdvance = current && preAddressStatuses.has(current.operation_status);
+
+  const { error } = await supabase
+    .from("campaign_kocs")
+    .update({
+      receiver_name: data.receiver_name,
+      receiver_phone: data.receiver_phone,
+      receiver_address: data.receiver_address,
+      receiver_province: data.receiver_province,
+      address_status: "submitted",
+      ...(shouldAdvance && { operation_status: "address_submitted" }),
+    })
     .eq("campaign_koc_id", campaignKocId);
 
   if (error) return { success: false, error: error.message };

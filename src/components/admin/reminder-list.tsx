@@ -19,34 +19,11 @@ function buildMessage(
   campaignName: string,
   status: string,
   token: string,
-  expiresAt: string,
   deadlineDate: string | null,
   revisionNote: string | null
 ): { message: string; type: NotificationType } {
   const link = `${getAppUrl()}/koc/${token}`;
-  const expiry = new Date(expiresAt).toLocaleDateString("vi-VN");
 
-  if (status === "waiting_address" || status === "client_approved") {
-    return {
-      type: "address_request",
-      message: `Chào ${kocName} 😊\n\nBạn đã được CityAds chọn tham gia campaign "${campaignName}".\n\nĐể gửi hàng mẫu, mình cần bạn điền thông tin địa chỉ nhận hàng tại đây:\n👉 ${link}\n(Link có hiệu lực đến ${expiry})\n\nCảm ơn bạn! 🙏`,
-    };
-  }
-  if (status === "sample_sent") {
-    return {
-      type: "sample_check",
-      message: `Chào ${kocName} 😊\n\nHàng mẫu của campaign "${campaignName}" đã được gửi đến bạn rồi nhé!\n\nVui lòng xác nhận đã nhận hàng tại đây:\n👉 ${link}\n\nCảm ơn bạn! 🙏`,
-    };
-  }
-  if (status === "waiting_video" || status === "sample_received") {
-    const deadline = deadlineDate
-      ? `\n(Deadline: ${new Date(deadlineDate).toLocaleDateString("vi-VN")})`
-      : "";
-    return {
-      type: "video_brief",
-      message: `Chào ${kocName} 😊\n\nCảm ơn bạn đã nhận hàng mẫu từ campaign "${campaignName}"!\n\nSau khi quay video, vui lòng submit link tại đây:\n👉 ${link}${deadline}\n\nCảm ơn bạn! 🙏`,
-    };
-  }
   if (status === "need_revision") {
     const note = revisionNote ? `\n📝 ${revisionNote}\n` : "";
     return {
@@ -54,9 +31,14 @@ function buildMessage(
       message: `Chào ${kocName} 😊\n\nVideo của bạn trong campaign "${campaignName}" cần được chỉnh sửa:${note}\nVui lòng submit lại tại đây:\n👉 ${link}\n\nCảm ơn bạn! 🙏`,
     };
   }
+
+  // Default: video submission request (waiting_video)
+  const deadline = deadlineDate
+    ? `\n(Deadline: ${new Date(deadlineDate).toLocaleDateString("vi-VN")})`
+    : "";
   return {
-    type: "custom",
-    message: `Chào ${kocName} 😊\n\nLink của bạn trong campaign "${campaignName}":\n👉 ${link}\n\nCảm ơn! 🙏`,
+    type: "video_brief",
+    message: `Chào ${kocName} 😊\n\nCảm ơn bạn đã nhận hàng mẫu từ campaign "${campaignName}"!\n\nSau khi quay video, vui lòng submit link tại đây:\n👉 ${link}${deadline}\n\nCảm ơn bạn! 🙏`,
   };
 }
 
@@ -74,7 +56,6 @@ function ReminderCard({
     campaignName,
     koc.operation_status,
     koc.magic_link_token,
-    koc.magic_link_expires_at,
     koc.deadline_date,
     koc.revision_note
   );
@@ -96,7 +77,8 @@ function ReminderCard({
   }
 
   function handleOpenZalo() {
-    window.open("https://chat.zalo.me/", "_blank");
+    const id = koc.koc_zalo || koc.koc_phone;
+    window.open(id ? `https://zalo.me/${id}` : "https://chat.zalo.me/", "_blank");
   }
 
   function handleRenewLink() {
