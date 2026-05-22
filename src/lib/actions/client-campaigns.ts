@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/types/app.types";
-import type { CampaignStatus, ClientApprovalStatus, ContentStatus } from "@/lib/types/enums";
+import type {
+  CampaignStatus,
+  ClientApprovalStatus,
+  ContentStatus,
+  OperationStatus,
+} from "@/lib/types/enums";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,14 +35,20 @@ export type ClientKocRow = {
   instagram_url: string | null;
   facebook_url: string | null;
   content_status: ContentStatus | null;
+  operation_status: OperationStatus | null;
   client_approval_status: ClientApprovalStatus;
   client_note: string | null;
   video_url: string | null;
   deadline_date: string | null;
-  receiver_name: string | null;
-  receiver_phone: string | null;
-  receiver_address: string | null;
-  receiver_province: string | null;
+  sample_sent_at: string | null;
+  sample_received_at: string | null;
+  video_submitted_at: string | null;
+  completed_at: string | null;
+  client_video_feedback: string | null;
+  client_video_feedback_at: string | null;
+  client_quality_rating: number | null;
+  client_quality_review: string | null;
+  client_quality_rated_at: string | null;
 };
 
 export type ClientCampaignDetail = {
@@ -162,14 +173,20 @@ export async function getClientCampaignDetail(
         instagram_url: r.instagram_url,
         facebook_url: r.facebook_url,
         content_status: r.content_status as ContentStatus | null,
+        operation_status: r.operation_status as OperationStatus | null,
         client_approval_status: (r.client_approval_status ?? "pending") as ClientApprovalStatus,
         client_note: r.client_note,
         video_url: r.video_url,
         deadline_date: r.deadline_date,
-        receiver_name: r.receiver_name,
-        receiver_phone: r.receiver_phone,
-        receiver_address: r.receiver_address,
-        receiver_province: r.receiver_province,
+        sample_sent_at: r.sample_sent_at,
+        sample_received_at: r.sample_received_at,
+        video_submitted_at: r.video_submitted_at,
+        completed_at: r.completed_at,
+        client_video_feedback: r.client_video_feedback,
+        client_video_feedback_at: r.client_video_feedback_at,
+        client_quality_rating: r.client_quality_rating,
+        client_quality_review: r.client_quality_review,
+        client_quality_rated_at: r.client_quality_rated_at,
       })),
     },
   };
@@ -209,7 +226,7 @@ export async function getClientMetrics(): Promise<ActionResult<ClientMetrics>> {
   };
 }
 
-// ─── Approval Action ──────────────────────────────────────────────────────────
+// ─── Mutations ────────────────────────────────────────────────────────────────
 
 export async function approveKoc(
   campaignKocId: string,
@@ -228,5 +245,45 @@ export async function approveKoc(
 
   revalidatePath(`/client/campaigns/${campaignId}`);
   revalidatePath("/client/dashboard");
+  return { success: true, data: undefined };
+}
+
+export async function submitVideoFeedback(
+  campaignKocId: string,
+  campaignId: string,
+  feedback: string
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("client_submit_video_feedback", {
+    p_campaign_koc_id: campaignKocId,
+    p_feedback: feedback,
+  });
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/client/campaigns/${campaignId}`);
+  return { success: true, data: undefined };
+}
+
+export async function rateKoc(
+  campaignKocId: string,
+  campaignId: string,
+  rating: number,
+  review?: string
+): Promise<ActionResult> {
+  if (rating < 1 || rating > 5) {
+    return { success: false, error: "Rating phải từ 1 đến 5 sao." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("client_rate_koc", {
+    p_campaign_koc_id: campaignKocId,
+    p_rating: rating,
+    ...(review ? { p_review: review } : {}),
+  });
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/client/campaigns/${campaignId}`);
   return { success: true, data: undefined };
 }

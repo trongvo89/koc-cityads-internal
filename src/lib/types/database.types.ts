@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       campaign_kocs: {
@@ -17,6 +22,11 @@ export type Database = {
           campaign_koc_id: string
           client_approval_status: Database["public"]["Enums"]["client_approval_status"]
           client_note: string | null
+          client_quality_rated_at: string | null
+          client_quality_rating: number | null
+          client_quality_review: string | null
+          client_video_feedback: string | null
+          client_video_feedback_at: string | null
           completed_at: string | null
           content_status: Database["public"]["Enums"]["content_status"]
           created_at: string
@@ -48,6 +58,11 @@ export type Database = {
           campaign_koc_id?: string
           client_approval_status?: Database["public"]["Enums"]["client_approval_status"]
           client_note?: string | null
+          client_quality_rated_at?: string | null
+          client_quality_rating?: number | null
+          client_quality_review?: string | null
+          client_video_feedback?: string | null
+          client_video_feedback_at?: string | null
           completed_at?: string | null
           content_status?: Database["public"]["Enums"]["content_status"]
           created_at?: string
@@ -79,6 +94,11 @@ export type Database = {
           campaign_koc_id?: string
           client_approval_status?: Database["public"]["Enums"]["client_approval_status"]
           client_note?: string | null
+          client_quality_rated_at?: string | null
+          client_quality_rating?: number | null
+          client_quality_review?: string | null
+          client_video_feedback?: string | null
+          client_video_feedback_at?: string | null
           completed_at?: string | null
           content_status?: Database["public"]["Enums"]["content_status"]
           created_at?: string
@@ -109,6 +129,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "campaign_kocs_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "client_campaign_kocs_view"
             referencedColumns: ["campaign_id"]
           },
           {
@@ -302,6 +329,13 @@ export type Database = {
             referencedRelation: "campaign_kocs"
             referencedColumns: ["campaign_koc_id"]
           },
+          {
+            foreignKeyName: "notifications_campaign_koc_id_fkey"
+            columns: ["campaign_koc_id"]
+            isOneToOne: false
+            referencedRelation: "client_campaign_kocs_view"
+            referencedColumns: ["campaign_koc_id"]
+          },
         ]
       }
       profiles: {
@@ -352,6 +386,12 @@ export type Database = {
             | Database["public"]["Enums"]["client_approval_status"]
             | null
           client_note: string | null
+          client_quality_rated_at: string | null
+          client_quality_rating: number | null
+          client_quality_review: string | null
+          client_video_feedback: string | null
+          client_video_feedback_at: string | null
+          completed_at: string | null
           content_status: Database["public"]["Enums"]["content_status"] | null
           deadline_date: string | null
           facebook_url: string | null
@@ -360,21 +400,39 @@ export type Database = {
           koc_id: string | null
           location: string | null
           name: string | null
-          receiver_address: string | null
-          receiver_name: string | null
-          receiver_phone: string | null
-          receiver_province: string | null
+          operation_status:
+            | Database["public"]["Enums"]["operation_status"]
+            | null
+          sample_received_at: string | null
+          sample_sent_at: string | null
           tiktok_url: string | null
+          video_submitted_at: string | null
           video_url: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "campaign_kocs_koc_id_fkey"
+            columns: ["koc_id"]
+            isOneToOne: false
+            referencedRelation: "kocs"
+            referencedColumns: ["koc_id"]
+          },
+        ]
       }
       koc_active_campaign_counts: {
         Row: {
           active_campaign_count: number | null
           koc_id: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "campaign_kocs_koc_id_fkey"
+            columns: ["koc_id"]
+            isOneToOne: false
+            referencedRelation: "kocs"
+            referencedColumns: ["koc_id"]
+          },
+        ]
       }
     }
     Functions: {
@@ -394,9 +452,17 @@ export type Database = {
         }
         Returns: undefined
       }
-      current_user_client_id: { Args: Record<PropertyKey, never>; Returns: string }
+      client_rate_koc: {
+        Args: { p_campaign_koc_id: string; p_rating: number; p_review?: string }
+        Returns: undefined
+      }
+      client_submit_video_feedback: {
+        Args: { p_campaign_koc_id: string; p_feedback: string }
+        Returns: undefined
+      }
+      current_user_client_id: { Args: never; Returns: string }
       current_user_role: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
       get_campaign_koc_by_token: {
@@ -413,12 +479,12 @@ export type Database = {
           sample_status: Database["public"]["Enums"]["sample_status"]
         }[]
       }
-      is_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
-      is_admin_or_super_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
-      is_client: { Args: Record<PropertyKey, never>; Returns: boolean }
-      is_internal_user: { Args: Record<PropertyKey, never>; Returns: boolean }
-      is_operator: { Args: Record<PropertyKey, never>; Returns: boolean }
-      is_super_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
+      is_admin: { Args: never; Returns: boolean }
+      is_admin_or_super_admin: { Args: never; Returns: boolean }
+      is_client: { Args: never; Returns: boolean }
+      is_internal_user: { Args: never; Returns: boolean }
+      is_operator: { Args: never; Returns: boolean }
+      is_super_admin: { Args: never; Returns: boolean }
       koc_confirm_sample: {
         Args: {
           p_status: Database["public"]["Enums"]["sample_status"]
@@ -496,15 +562,176 @@ export type Database = {
   }
 }
 
-type DefaultSchema = Database["public"]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-export type Tables<T extends keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])> =
-  (DefaultSchema["Tables"] & DefaultSchema["Views"])[T] extends { Row: infer R } ? R : never
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
-export type TablesInsert<T extends keyof DefaultSchema["Tables"]> =
-  DefaultSchema["Tables"][T] extends { Insert: infer I } ? I : never
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
-export type TablesUpdate<T extends keyof DefaultSchema["Tables"]> =
-  DefaultSchema["Tables"][T] extends { Update: infer U } ? U : never
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
 
-export type Enums<T extends keyof DefaultSchema["Enums"]> = DefaultSchema["Enums"][T]
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      address_status: ["waiting", "submitted", "issue"],
+      campaign_status: ["draft", "active", "completed", "paused", "cancelled"],
+      client_approval_status: ["pending", "approved", "rejected"],
+      content_status: [
+        "waiting",
+        "submitted",
+        "need_revision",
+        "approved",
+        "invalid_link",
+        "late",
+      ],
+      final_status: ["active", "completed", "failed", "dropped"],
+      koc_status: ["active", "inactive", "blacklisted"],
+      notification_channel: [
+        "zalo_manual",
+        "telegram",
+        "email",
+        "sms",
+        "system",
+      ],
+      notification_status: ["draft", "copied", "sent", "failed"],
+      notification_type: [
+        "address_request",
+        "address_reminder",
+        "sample_check",
+        "sample_reminder",
+        "video_brief",
+        "video_reminder",
+        "revision_request",
+        "custom",
+      ],
+      operation_status: [
+        "draft",
+        "sent_to_client",
+        "client_approved",
+        "client_rejected",
+        "waiting_address",
+        "address_submitted",
+        "waiting_sample_sent",
+        "sample_sent",
+        "sample_received",
+        "waiting_video",
+        "video_submitted",
+        "need_revision",
+        "video_approved",
+        "completed",
+        "failed",
+      ],
+      sample_status: ["waiting", "sent", "received", "not_received", "issue"],
+      user_role: ["super_admin", "admin", "operator", "client"],
+    },
+  },
+} as const
