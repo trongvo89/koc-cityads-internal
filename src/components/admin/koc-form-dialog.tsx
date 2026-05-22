@@ -33,6 +33,7 @@ const schema = z.object({
   tiktok_url: z.string().nullable().optional(),
   instagram_url: z.string().nullable().optional(),
   facebook_url: z.string().nullable().optional(),
+  avatar_url: z.string().nullable().optional(),
   location: z.string().nullable().optional(),
   follower: z.number().int().nullable().optional(),
   default_address: z.string().nullable().optional(),
@@ -69,6 +70,8 @@ export default function KocFormDialog({
   });
 
   const selectedStatus = watch("status");
+  const watchedAvatarUrl = watch("avatar_url");
+  const watchedName = watch("name");
 
   useEffect(() => {
     if (koc) {
@@ -79,6 +82,8 @@ export default function KocFormDialog({
         email: "",
         tiktok_url: koc.tiktok_url ?? "",
         instagram_url: koc.instagram_url ?? "",
+        facebook_url: koc.facebook_url ?? "",
+        avatar_url: koc.avatar_url ?? "",
         location: koc.location ?? "",
         follower: koc.follower ?? undefined,
         status: koc.status,
@@ -107,6 +112,7 @@ export default function KocFormDialog({
       tiktok_url: data.tiktok_url || null,
       instagram_url: data.instagram_url || null,
       facebook_url: data.facebook_url || null,
+      avatar_url: data.avatar_url || null,
       location: data.location || null,
       follower: data.follower ?? null,
       default_address: data.default_address || null,
@@ -162,6 +168,28 @@ export default function KocFormDialog({
             <div className="space-y-1.5">
               <Label>Instagram URL</Label>
               <Input placeholder="https://instagram.com/..." {...register("instagram_url")} />
+            </div>
+
+            <div className="col-span-2 space-y-1.5">
+              <Label>Ảnh đại diện (URL)</Label>
+              <div className="flex gap-3 items-center">
+                <div className="h-12 w-12 rounded-full flex-shrink-0 overflow-hidden border border-zinc-200 bg-zinc-100 flex items-center justify-center">
+                  {watchedAvatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={watchedAvatarUrl} alt="preview" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-zinc-400 text-lg font-bold">
+                      {watchedName?.charAt(0)?.toUpperCase() ?? "?"}
+                    </span>
+                  )}
+                </div>
+                <Input
+                  placeholder="https://example.com/photo.jpg"
+                  className="flex-1"
+                  {...register("avatar_url")}
+                />
+              </div>
+              <p className="text-xs text-zinc-400">Dán link ảnh profile (TikTok, drive, CDN...) — hiển thị trên trang proposal gửi client</p>
             </div>
 
             <div className="space-y-1.5">

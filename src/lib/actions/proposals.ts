@@ -22,9 +22,11 @@ export type ProposalKocCard = {
   koc_id: string;
   koc_name: string;
   koc_category: string[] | null;
+  avatar_url: string | null;
   follower: number | null;
   tiktok_url: string | null;
   instagram_url: string | null;
+  facebook_url: string | null;
   avg_rating: number | null;
   total_campaigns: number;
   video_count: number;
@@ -87,7 +89,7 @@ export async function getProposalDetail(proposalId: string): Promise<ActionResul
   const { data, error } = await supabase
     .from("proposals")
     .select(
-      "proposal_id, title, notes, status, share_token, client_id, prospect_name, created_at, clients(company_name), proposal_kocs(proposal_koc_id, koc_id, notes, ordering, kocs(name, category, follower, tiktok_url, instagram_url))"
+      "proposal_id, title, notes, status, share_token, client_id, prospect_name, created_at, clients(company_name), proposal_kocs(proposal_koc_id, koc_id, notes, ordering, kocs(name, category, follower, tiktok_url, instagram_url, facebook_url, avatar_url))"
     )
     .eq("proposal_id", proposalId)
     .single();
@@ -131,7 +133,16 @@ export async function getProposalByToken(token: string): Promise<ActionResult<Pr
   if (error) return { success: false, error: error.message };
   if (!data) return { success: false, error: "Proposal not found" };
 
-  return { success: true, data: data as ProposalDetail };
+  // RPC returns { proposal: {...}, kocs: [...] } — flatten into ProposalDetail shape
+  const raw = data as { proposal: Record<string, unknown>; kocs: ProposalKocCard[] };
+  return {
+    success: true,
+    data: {
+      ...raw.proposal,
+      share_token: token,
+      kocs: raw.kocs ?? [],
+    } as ProposalDetail,
+  };
 }
 
 // ─── Mutations ────────────────────────────────────────────────────────────────
@@ -316,9 +327,11 @@ function buildProposalDetail(data: any, perfMap?: Map<string, { avg_rating: numb
         koc_id: pk.koc_id,
         koc_name: koc.name ?? "—",
         koc_category: koc.category ?? null,
+        avatar_url: koc.avatar_url ?? null,
         follower: koc.follower ?? null,
         tiktok_url: koc.tiktok_url ?? null,
         instagram_url: koc.instagram_url ?? null,
+        facebook_url: koc.facebook_url ?? null,
         avg_rating: perf.avg_rating,
         total_campaigns: perf.total_campaigns,
         video_count: perf.video_count,

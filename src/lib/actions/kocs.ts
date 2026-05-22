@@ -17,6 +17,8 @@ export type KocListItem = {
   location: string | null;
   tiktok_url: string | null;
   instagram_url: string | null;
+  facebook_url: string | null;
+  avatar_url: string | null;
   default_address: string | null;
   active_campaign_count: number;
   avg_rating: number | null;
@@ -58,7 +60,7 @@ export async function getKocs(): Promise<ActionResult<KocListItem[]>> {
       supabase
         .from("kocs")
         .select(
-          "koc_id, name, category, phone, zalo, status, follower, location, tiktok_url, instagram_url, default_address"
+          "koc_id, name, category, phone, zalo, status, follower, location, tiktok_url, instagram_url, facebook_url, avatar_url, default_address"
         )
         .order("name"),
       supabase.from("koc_active_campaign_counts").select("koc_id, active_campaign_count"),
@@ -92,7 +94,7 @@ export async function getKocById(kocId: string): Promise<ActionResult<KocListIte
   const { data, error } = await supabase
     .from("kocs")
     .select(
-      "koc_id, name, category, phone, zalo, status, follower, location, tiktok_url, instagram_url, default_address"
+      "koc_id, name, category, phone, zalo, status, follower, location, tiktok_url, instagram_url, facebook_url, avatar_url, default_address"
     )
     .eq("koc_id", kocId)
     .single();
@@ -123,6 +125,7 @@ const KocSchema = z.object({
     .nullable()
     .optional()
     .or(z.literal("")),
+  avatar_url: z.string().nullable().optional(),
   category: z.array(z.string()).nullable().optional(),
   location: z.string().nullable().optional(),
   follower: z.number().int().nullable().optional(),
@@ -246,7 +249,7 @@ export async function getKocProfile(kocId: string): Promise<ActionResult<KocProf
       supabase
         .from("kocs")
         .select(
-          "koc_id, name, category, phone, zalo, email, status, follower, location, tiktok_url, instagram_url, facebook_url, default_address, note"
+          "koc_id, name, category, phone, zalo, email, status, follower, location, tiktok_url, instagram_url, facebook_url, avatar_url, default_address, note"
         )
         .eq("koc_id", kocId)
         .single(),
