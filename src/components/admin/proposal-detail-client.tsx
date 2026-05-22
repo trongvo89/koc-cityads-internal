@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Copy, Check, ExternalLink, Star, Plus, Trash2,
-  RefreshCw, Search,
+  RefreshCw, Search, Rocket, MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,7 @@ import {
   removeKocFromProposal,
   updateProposalKocNotes,
   regenerateShareToken,
+  convertProposalToCampaign,
 } from "@/lib/actions/proposals";
 import type { ProposalDetail, ProposalKocCard } from "@/lib/actions/proposals";
 import type { KocListItem } from "@/lib/actions/kocs";
@@ -99,8 +100,21 @@ function KocCard({
     });
   }
 
+  const clientStatusBadge =
+    pkoc.client_status === "approved"
+      ? { label: "✓ Client duyệt", cls: "bg-green-100 text-green-700 border border-green-200" }
+      : pkoc.client_status === "rejected"
+      ? { label: "✗ Client từ chối", cls: "bg-red-100 text-red-700 border border-red-200" }
+      : null;
+
   return (
-    <div className="bg-white rounded-lg border border-zinc-200 p-4">
+    <div className={`bg-white rounded-lg border p-4 ${
+      pkoc.client_status === "approved"
+        ? "border-green-200"
+        : pkoc.client_status === "rejected"
+        ? "border-red-200"
+        : "border-zinc-200"
+    }`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -111,6 +125,11 @@ function KocCard({
             {tierLabel && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${getTierClass(tierLabel)}`}>
                 {tierLabel}
+              </span>
+            )}
+            {clientStatusBadge && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${clientStatusBadge.cls}`}>
+                {clientStatusBadge.label}
               </span>
             )}
           </div>
@@ -174,6 +193,13 @@ function KocCard({
           </Button>
         </div>
       </div>
+
+      {pkoc.client_comment && (
+        <div className="mt-2 flex items-start gap-1.5 bg-zinc-50 rounded-md px-2.5 py-2 border border-zinc-100">
+          <MessageSquare className="h-3 w-3 text-zinc-400 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-zinc-600 leading-relaxed">{pkoc.client_comment}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -281,6 +307,82 @@ function AddKocsDialog({
   );
 }
 
+// ─── Convert to Campaign Dialog ───────────────────────────────────────────────
+
+function ConvertToCampaignDialog({
+  open,
+  proposal,
+  onClose,
+  onConvert,
+  isPending,
+}: {
+  open: boolean;
+  proposal: ProposalDetail;
+  onClose: () => void;
+  onConvert: (campaignName: string) => void;
+  isPending: boolean;
+}) {
+  const [campaignName, setCampaignName] = useState(proposal.title);
+  const approvedKocs = proposal.kocs.filter((k) => k.client_status === "approved");
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Chuyển sang Campaign</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {!proposal.client_id && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md px-3 py-2 text-xs text-yellow-700">
+              ⚠️ Proposal chưa có client. Vui lòng gán client trước khi tạo campaign.
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-medium text-zinc-600 block mb-1">Tên campaign</label>
+            <Input
+              value={campaignName}
+              onChange={(e) => setCampaignName(e.target.value)}
+              placeholder="Tên campaign..."
+              className="h-9 text-sm"
+            />
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-zinc-600 mb-2">
+              {approvedKocs.length} KOC client đã duyệt sẽ được thêm vào:
+            </p>
+            {approvedKocs.length === 0 ? (
+              <p className="text-xs text-zinc-400 italic">Chưa có KOC nào được client duyệt.</p>
+            ) : (
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {approvedKocs.map((k) => (
+                  <div key={k.koc_id} className="flex items-center gap-2 text-sm text-zinc-700">
+                    <Check className="h-3 w-3 text-green-500 flex-shrink-0" />
+                    <span>{k.koc_name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>Hủy</Button>
+          <Button
+            onClick={() => onConvert(campaignName)}
+            disabled={!proposal.client_id || !campaignName.trim() || isPending}
+          >
+            <Rocket className="h-3.5 w-3.5 mr-1.5" />
+            {isPending ? "Đang tạo..." : "Tạo Campaign"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function ProposalDetailClient({
@@ -292,6 +394,7 @@ export default function ProposalDetailClient({
 }) {
   const [proposal, setProposal] = useState(initialProposal);
   const [addOpen, setAddOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [tokenRenewing, setTokenRenewing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -333,6 +436,20 @@ export default function ProposalDetailClient({
         ...prev,
         kocs: prev.kocs.filter((k) => k.proposal_koc_id !== proposalKocId),
       }));
+    });
+  }
+
+  function handleConvertToCampaign(campaignName: string) {
+    if (!proposal.client_id) return;
+    startTransition(async () => {
+      const result = await convertProposalToCampaign(proposal.proposal_id, {
+        campaign_name: campaignName,
+        client_id: proposal.client_id!,
+      });
+      if (result.success) {
+        setConvertOpen(false);
+        window.location.href = `/admin/campaigns`;
+      }
     });
   }
 
@@ -409,13 +526,40 @@ export default function ProposalDetailClient({
         </div>
       </div>
 
+      {/* Client overall comment */}
+      {proposal.client_overall_comment && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-5 flex gap-3">
+          <MessageSquare className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-blue-600 mb-1">Ghi chú tổng quát từ client</p>
+            <p className="text-sm text-blue-800 leading-relaxed">{proposal.client_overall_comment}</p>
+          </div>
+        </div>
+      )}
+
       {/* KOC Grid */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <h2 className="font-semibold text-zinc-700">{proposal.kocs.length} KOC trong proposal</h2>
-        <Button size="sm" onClick={() => setAddOpen(true)} disabled={isPending}>
-          <Plus className="h-4 w-4 mr-1" />
-          Thêm KOC
-        </Button>
+        <div className="flex items-center gap-2">
+          {proposal.kocs.some((k) => k.client_status === "approved") && !proposal.linked_campaign_id && (
+            <Button size="sm" variant="outline" className="gap-1.5 text-green-700 border-green-300 hover:bg-green-50"
+              onClick={() => setConvertOpen(true)} disabled={isPending}>
+              <Rocket className="h-3.5 w-3.5" />
+              Chuyển sang Campaign
+            </Button>
+          )}
+          {proposal.linked_campaign_id && (
+            <a href={`/admin/campaigns`}
+              className="inline-flex items-center gap-1.5 text-xs text-blue-600 hover:underline">
+              <ExternalLink className="h-3.5 w-3.5" />
+              Đã tạo campaign
+            </a>
+          )}
+          <Button size="sm" onClick={() => setAddOpen(true)} disabled={isPending}>
+            <Plus className="h-4 w-4 mr-1" />
+            Thêm KOC
+          </Button>
+        </div>
       </div>
 
       {proposal.kocs.length === 0 ? (
@@ -444,6 +588,14 @@ export default function ProposalDetailClient({
         availableKocs={availableKocs}
         onClose={() => setAddOpen(false)}
         onAdd={handleAddKocs}
+        isPending={isPending}
+      />
+
+      <ConvertToCampaignDialog
+        open={convertOpen}
+        proposal={proposal}
+        onClose={() => setConvertOpen(false)}
+        onConvert={handleConvertToCampaign}
         isPending={isPending}
       />
     </div>

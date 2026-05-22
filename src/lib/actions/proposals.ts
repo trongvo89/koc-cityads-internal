@@ -32,6 +32,9 @@ export type ProposalKocCard = {
   video_count: number;
   notes: string | null;
   ordering: number;
+  client_status: "pending" | "approved" | "rejected";
+  client_comment: string | null;
+  client_reviewed_at: string | null;
 };
 
 export type ProposalDetail = {
@@ -44,6 +47,8 @@ export type ProposalDetail = {
   client_name: string | null;
   prospect_name: string | null;
   created_at: string;
+  client_overall_comment: string | null;
+  linked_campaign_id: string | null;
   kocs: ProposalKocCard[];
 };
 
@@ -89,7 +94,7 @@ export async function getProposalDetail(proposalId: string): Promise<ActionResul
   const { data, error } = await supabase
     .from("proposals")
     .select(
-      "proposal_id, title, notes, status, share_token, client_id, prospect_name, created_at, clients(company_name), proposal_kocs(proposal_koc_id, koc_id, notes, ordering, kocs(name, category, follower, tiktok_url, instagram_url, facebook_url, avatar_url))"
+      "proposal_id, title, notes, status, share_token, client_id, prospect_name, created_at, client_overall_comment, linked_campaign_id, clients(company_name), proposal_kocs(proposal_koc_id, koc_id, notes, ordering, client_status, client_comment, client_reviewed_at, kocs(name, category, follower, tiktok_url, instagram_url, facebook_url, avatar_url))"
     )
     .eq("proposal_id", proposalId)
     .single();
@@ -98,7 +103,9 @@ export async function getProposalDetail(proposalId: string): Promise<ActionResul
 
   // Fetch performance stats for KOCs in this proposal
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const kocIds = (data.proposal_kocs as any[] ?? []).map((pk: any) => pk.koc_id as string);
+  const raw = data as any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const kocIds = ((raw.proposal_kocs ?? []) as any[]).map((pk: any) => pk.koc_id as string);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let perfMap = new Map<string, { avg_rating: number | null; total_campaigns: number; video_count: number }>();
   if (kocIds.length > 0) {
@@ -119,7 +126,7 @@ export async function getProposalDetail(proposalId: string): Promise<ActionResul
 
   return {
     success: true,
-    data: buildProposalDetail(data, perfMap),
+    data: buildProposalDetail(raw, perfMap),
   };
 }
 
@@ -134,14 +141,44 @@ export async function getProposalByToken(token: string): Promise<ActionResult<Pr
   if (!data) return { success: false, error: "Proposal not found" };
 
   // RPC returns { proposal: {...}, kocs: [...] } — flatten into ProposalDetail shape
-  const raw = data as { proposal: Record<string, unknown>; kocs: ProposalKocCard[] };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const raw = data as { proposal: any; kocs: any[] };
+  const kocs: ProposalKocCard[] = (raw.kocs ?? []).map((k: any) => ({
+    proposal_koc_id: k.proposal_koc_id,
+    koc_id: k.koc_id,
+    koc_name: k.koc_name ?? "—",
+    koc_category: k.koc_category ?? null,
+    avatar_url: k.avatar_url ?? null,
+    follower: k.follower ?? null,
+    tiktok_url: k.tiktok_url ?? null,
+    instagram_url: k.instagram_url ?? null,
+    facebook_url: k.facebook_url ?? null,
+    avg_rating: k.avg_rating ?? null,
+    total_campaigns: Number(k.total_campaigns ?? 0),
+    video_count: Number(k.video_count ?? 0),
+    notes: k.notes ?? null,
+    ordering: k.ordering ?? 0,
+    client_status: k.client_status ?? "pending",
+    client_comment: k.client_comment ?? null,
+    client_reviewed_at: k.client_reviewed_at ?? null,
+  }));
+
   return {
     success: true,
     data: {
-      ...raw.proposal,
+      proposal_id: raw.proposal.proposal_id,
+      title: raw.proposal.title,
+      notes: raw.proposal.notes ?? null,
+      status: raw.proposal.status,
       share_token: token,
-      kocs: raw.kocs ?? [],
-    } as ProposalDetail,
+      client_id: raw.proposal.client_id ?? null,
+      client_name: raw.proposal.client_name ?? null,
+      prospect_name: raw.proposal.prospect_name ?? null,
+      created_at: raw.proposal.created_at,
+      client_overall_comment: raw.proposal.client_overall_comment ?? null,
+      linked_campaign_id: raw.proposal.linked_campaign_id ?? null,
+      kocs,
+    },
   };
 }
 
@@ -313,6 +350,114 @@ export async function regenerateShareToken(
   return { success: true, data: { share_token: data.share_token } };
 }
 
+// ─── Public client actions (called via share_token, no auth) ──────────────────
+
+export async function submitKocReview(
+  token: string,
+  proposalKocId: string,
+  status: "approved" | "rejected" | "pending",
+  comment?: string | null
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await supabase.rpc("submit_koc_review" as any, {
+    p_token: token,
+    p_koc_entry: proposalKocId,
+    p_status: status,
+    p_comment: comment ?? null,
+  });
+  if (error) return { success: false, error: error.message };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const res = data as any;
+  if (!res?.success) return { success: false, error: res?.error ?? "Lỗi không xác định" };
+  return { success: true, data: undefined };
+}
+
+export async function submitProposalComment(
+  token: string,
+  comment: string
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await supabase.rpc("submit_proposal_comment" as any, {
+    p_token: token,
+    p_comment: comment,
+  });
+  if (error) return { success: false, error: error.message };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const res = data as any;
+  if (!res?.success) return { success: false, error: res?.error ?? "Lỗi không xác định" };
+  return { success: true, data: undefined };
+}
+
+export async function convertProposalToCampaign(
+  proposalId: string,
+  opts: { campaign_name: string; client_id: string }
+): Promise<ActionResult<{ campaign_id: string }>> {
+  const supabase = await createClient();
+
+  // Fetch approved KOC ids for this proposal
+  const { data: pkocs, error: pkErr } = await supabase
+    .from("proposal_kocs")
+    .select("koc_id, client_status")
+    .eq("proposal_id", proposalId);
+
+  if (pkErr) return { success: false, error: pkErr.message };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const approvedKocIds = (pkocs ?? []).filter((pk: any) => pk.client_status === "approved").map((pk: any) => pk.koc_id as string);
+
+  // Create campaign
+  const { data: campaign, error: campErr } = await supabase
+    .from("campaigns")
+    .insert({
+      campaign_name: opts.campaign_name,
+      client_id: opts.client_id,
+      package_size: approvedKocIds.length,
+    })
+    .select("campaign_id")
+    .single();
+
+  if (campErr || !campaign) return { success: false, error: campErr?.message ?? "Không tạo được campaign" };
+
+  // Add approved KOCs with pre-filled address if available
+  if (approvedKocIds.length > 0) {
+    const { data: kocProfiles } = await supabase
+      .from("kocs")
+      .select("koc_id, name, phone, default_address, location")
+      .in("koc_id", approvedKocIds);
+
+    const kocMap = new Map((kocProfiles ?? []).map((k) => [k.koc_id, k]));
+    const inserts = approvedKocIds.map((koc_id) => {
+      const koc = kocMap.get(koc_id);
+      return {
+        campaign_id: campaign.campaign_id,
+        koc_id,
+        receiver_name: koc?.name ?? null,
+        receiver_phone: koc?.phone ?? null,
+        receiver_address: koc?.default_address ?? null,
+        receiver_province: koc?.location ?? null,
+        address_status: (koc?.default_address ? "submitted" : "waiting") as "submitted" | "waiting",
+      };
+    });
+
+    const { error: insertErr } = await supabase.from("campaign_kocs").insert(inserts);
+    if (insertErr) return { success: false, error: insertErr.message };
+  }
+
+  // Mark proposal accepted and link campaign
+  await supabase
+    .from("proposals")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update({ status: "accepted", linked_campaign_id: campaign.campaign_id } as any)
+    .eq("proposal_id", proposalId);
+
+  revalidatePath("/admin/proposals");
+  revalidatePath(`/admin/proposals/${proposalId}`);
+  revalidatePath("/admin/campaigns");
+  return { success: true, data: { campaign_id: campaign.campaign_id } };
+}
+
 // ─── Internal helper ──────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -337,6 +482,9 @@ function buildProposalDetail(data: any, perfMap?: Map<string, { avg_rating: numb
         video_count: perf.video_count,
         notes: pk.notes ?? null,
         ordering: pk.ordering ?? 0,
+        client_status: pk.client_status ?? "pending",
+        client_comment: pk.client_comment ?? null,
+        client_reviewed_at: pk.client_reviewed_at ?? null,
       };
     }
   );
@@ -353,6 +501,8 @@ function buildProposalDetail(data: any, perfMap?: Map<string, { avg_rating: numb
     client_name: data.clients?.company_name ?? null,
     prospect_name: data.prospect_name ?? null,
     created_at: data.created_at,
+    client_overall_comment: data.client_overall_comment ?? null,
+    linked_campaign_id: data.linked_campaign_id ?? null,
     kocs,
   };
 }
