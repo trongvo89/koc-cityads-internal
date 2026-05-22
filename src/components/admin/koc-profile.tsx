@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ExternalLink, Star, Pencil } from "lucide-react";
+import { ArrowLeft, ExternalLink, Star, Pencil, Copy, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import KocFormDialog from "@/components/admin/koc-form-dialog";
@@ -66,15 +66,37 @@ const FINAL_STATUS_LABEL: Record<string, string> = {
   ongoing: "Đang chạy",
 };
 
+// ─── Copy URL button ──────────────────────────────────────────────────────────
+
+function CopyUrlButton({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false);
+  function handleCopy() {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      title="Copy URL"
+      className="ml-1 p-0.5 rounded text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+    >
+      {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+    </button>
+  );
+}
+
 // ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-type Tab = "history" | "info";
+type Tab = "history" | "videos" | "info";
 
 export default function KocProfileClient({ koc }: { koc: KocProfile }) {
   const [tab, setTab] = useState<Tab>("history");
   const [editOpen, setEditOpen] = useState(false);
 
   const tier = getTier(koc.avg_rating, koc.total_campaigns);
+  const videos = koc.history.filter((h) => h.video_url !== null);
   const completionRate =
     koc.total_campaigns > 0
       ? Math.round((koc.completed_campaigns / koc.total_campaigns) * 100)
@@ -194,7 +216,7 @@ export default function KocProfileClient({ koc }: { koc: KocProfile }) {
       {/* Tabs */}
       <div className="border-b border-zinc-200 mb-4">
         <div className="flex gap-0">
-          {(["history", "info"] as Tab[]).map((t) => (
+          {(["history", "videos", "info"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -204,7 +226,7 @@ export default function KocProfileClient({ koc }: { koc: KocProfile }) {
                   : "border-transparent text-zinc-500 hover:text-zinc-700"
               }`}
             >
-              {t === "history" ? "Lịch sử" : "Thông tin"}
+              {t === "history" ? "Lịch sử" : t === "videos" ? `Videos (${videos.length})` : "Thông tin"}
             </button>
           ))}
         </div>
@@ -275,6 +297,72 @@ export default function KocProfileClient({ koc }: { koc: KocProfile }) {
                         ) : (
                           <span className="text-zinc-400">—</span>
                         )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "videos" && (
+        <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
+          {videos.length === 0 ? (
+            <div className="py-12 text-center text-zinc-500 text-sm">
+              Chưa có video nào được submit.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
+                <thead className="border-b border-zinc-200 bg-zinc-50">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Campaign</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Client</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Ngày nộp</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Đánh giá</th>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wide">Video URL</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {videos.map((h) => (
+                    <tr key={h.campaign_koc_id} className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50">
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/admin/campaigns/${h.campaign_id}`}
+                          className="font-medium text-zinc-900 hover:text-blue-600 hover:underline"
+                        >
+                          {h.campaign_name}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 text-zinc-600">{h.client_name}</td>
+                      <td className="px-4 py-3 text-zinc-500 text-xs whitespace-nowrap">
+                        {h.video_submitted_at ? formatDate(h.video_submitted_at) : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        {h.client_quality_rating != null ? (
+                          <div className="flex items-center gap-1">
+                            <Stars value={h.client_quality_rating} />
+                            <span className="text-xs text-zinc-500">{h.client_quality_rating}/5</span>
+                          </div>
+                        ) : (
+                          <span className="text-zinc-400 text-xs">Chưa đánh giá</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 max-w-[260px]">
+                          <a
+                            href={h.video_url!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 truncate"
+                          >
+                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                            <span className="truncate">{h.video_url}</span>
+                          </a>
+                          <CopyUrlButton url={h.video_url!} />
+                        </div>
                       </td>
                     </tr>
                   ))}

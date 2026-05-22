@@ -17,6 +17,14 @@ export type ProposalListItem = {
   share_token: string;
 };
 
+export type KocVideoEntry = {
+  campaign_koc_id: string;
+  campaign_name: string;
+  client_name: string;
+  video_url: string;
+  video_submitted_at: string | null;
+};
+
 export type ProposalKocCard = {
   proposal_koc_id: string;
   koc_id: string;
@@ -35,6 +43,7 @@ export type ProposalKocCard = {
   client_status: "pending" | "approved" | "rejected";
   client_comment: string | null;
   client_reviewed_at: string | null;
+  past_videos: KocVideoEntry[];
 };
 
 export type ProposalDetail = {
@@ -101,18 +110,29 @@ export async function getProposalDetail(proposalId: string): Promise<ActionResul
 
   if (error || !data) return { success: false, error: error?.message ?? "Not found" };
 
-  // Fetch performance stats for KOCs in this proposal
+  // Fetch performance stats + past videos in parallel for the KOCs in this proposal
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const raw = data as any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const kocIds = ((raw.proposal_kocs ?? []) as any[]).map((pk: any) => pk.koc_id as string);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let perfMap = new Map<string, { avg_rating: number | null; total_campaigns: number; video_count: number }>();
+  let videosMap = new Map<string, KocVideoEntry[]>();
+
   if (kocIds.length > 0) {
-    const { data: perf } = await supabase
-      .from("koc_performance_summary")
-      .select("koc_id, avg_rating, total_campaigns, video_count")
-      .in("koc_id", kocIds);
+    const [{ data: perf }, { data: videos }] = await Promise.all([
+      supabase
+        .from("koc_performance_summary")
+        .select("koc_id, avg_rating, total_campaigns, video_count")
+        .in("koc_id", kocIds),
+      supabase
+        .from("campaign_kocs")
+        .select("campaign_koc_id, koc_id, video_url, video_submitted_at, campaigns(campaign_name, clients(company_name))")
+        .in("koc_id", kocIds)
+        .not("video_url", "is", null)
+        .order("video_submitted_at", { ascending: false }),
+    ]);
+
     if (perf) {
       perfMap = new Map(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -122,11 +142,27 @@ export async function getProposalDetail(proposalId: string): Promise<ActionResul
         ])
       );
     }
+
+    if (videos) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const v of videos as any[]) {
+        const entry: KocVideoEntry = {
+          campaign_koc_id: v.campaign_koc_id,
+          campaign_name: v.campaigns?.campaign_name ?? "—",
+          client_name: v.campaigns?.clients?.company_name ?? "—",
+          video_url: v.video_url,
+          video_submitted_at: v.video_submitted_at ?? null,
+        };
+        const existing = videosMap.get(v.koc_id) ?? [];
+        existing.push(entry);
+        videosMap.set(v.koc_id, existing);
+      }
+    }
   }
 
   return {
     success: true,
-    data: buildProposalDetail(raw, perfMap),
+    data: buildProposalDetail(raw, perfMap, videosMap),
   };
 }
 
@@ -161,6 +197,15 @@ export async function getProposalByToken(token: string): Promise<ActionResult<Pr
     client_status: k.client_status ?? "pending",
     client_comment: k.client_comment ?? null,
     client_reviewed_at: k.client_reviewed_at ?? null,
+    past_videos: Array.isArray(k.past_videos)
+      ? k.past_videos.map((v: any) => ({
+          campaign_koc_id: v.campaign_koc_id,
+          campaign_name: v.campaign_name ?? "—",
+          client_name: v.client_name ?? "—",
+          video_url: v.video_url,
+          video_submitted_at: v.video_submitted_at ?? null,
+        }))
+      : [],
   }));
 
   return {
@@ -471,7 +516,7 @@ export async function convertProposalToCampaign(
 // ─── Internal helper ──────────────────────────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildProposalDetail(data: any, perfMap?: Map<string, { avg_rating: number | null; total_campaigns: number; video_count: number }>): ProposalDetail {
+function buildProposalDetail(data: any, perfMap?: Map<string, { avg_rating: number | null; total_campaigns: number; video_count: number }>, videosMap?: Map<string, KocVideoEntry[]>): ProposalDetail {
   const kocs: ProposalKocCard[] = (data.proposal_kocs ?? []).map(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (pk: any) => {
@@ -495,6 +540,7 @@ function buildProposalDetail(data: any, perfMap?: Map<string, { avg_rating: numb
         client_status: pk.client_status ?? "pending",
         client_comment: pk.client_comment ?? null,
         client_reviewed_at: pk.client_reviewed_at ?? null,
+        past_videos: videosMap?.get(pk.koc_id) ?? [],
       };
     }
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Star, ExternalLink, Check, X, MessageSquare } from "lucide-react";
+import { Star, ExternalLink, Check, X, MessageSquare, Video, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { submitKocReview, submitProposalComment } from "@/lib/actions/proposals";
@@ -37,6 +37,55 @@ type KocLocalState = {
   saving: boolean;
   commentSaved: boolean;
 };
+
+// ─── Portfolio Section ────────────────────────────────────────────────────────
+
+function PortfolioSection({ videos }: { videos: import("@/lib/actions/proposals").KocVideoEntry[] }) {
+  const [open, setOpen] = useState(false);
+  const preview = videos.slice(0, 2);
+
+  return (
+    <div className="px-5 pb-3">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-[10px] text-zinc-500 hover:text-zinc-700 font-semibold uppercase tracking-wide w-full transition-colors"
+      >
+        <Video className="h-3 w-3" />
+        Portfolio ({videos.length} video{videos.length > 1 ? "s" : ""})
+        {open ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+      </button>
+
+      {/* Always show 2 previews; expand to show all */}
+      <div className="mt-1.5 space-y-1.5">
+        {(open ? videos : preview).map((v) => (
+          <div key={v.campaign_koc_id} className="flex items-start gap-2 bg-zinc-50 rounded-lg px-3 py-2 border border-zinc-100">
+            <Video className="h-3 w-3 text-zinc-400 mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-zinc-500 truncate">{v.campaign_name}</p>
+              <a
+                href={v.video_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 mt-0.5"
+              >
+                <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                Xem video
+              </a>
+            </div>
+          </div>
+        ))}
+        {!open && videos.length > 2 && (
+          <button
+            onClick={() => setOpen(true)}
+            className="text-[10px] text-zinc-400 hover:text-zinc-600 pl-1 transition-colors"
+          >
+            +{videos.length - 2} video khác...
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── KOC Review Card ──────────────────────────────────────────────────────────
 
@@ -170,6 +219,9 @@ function KocReviewCard({
           </div>
         </div>
       )}
+
+      {/* Past videos portfolio */}
+      {pkoc.past_videos.length > 0 && <PortfolioSection videos={pkoc.past_videos} />}
 
       {/* Review controls */}
       <div className="px-5 pb-5 mt-auto pt-2 border-t border-zinc-100">

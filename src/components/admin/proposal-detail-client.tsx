@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Copy, Check, ExternalLink, Star, Plus, Trash2,
-  RefreshCw, Search, Rocket, MessageSquare,
+  RefreshCw, Search, Rocket, MessageSquare, ChevronDown, ChevronUp, Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -200,6 +200,49 @@ function KocCard({
         <div className="mt-2 flex items-start gap-1.5 bg-zinc-50 rounded-md px-2.5 py-2 border border-zinc-100">
           <MessageSquare className="h-3 w-3 text-zinc-400 mt-0.5 flex-shrink-0" />
           <p className="text-xs text-zinc-600 leading-relaxed">{pkoc.client_comment}</p>
+        </div>
+      )}
+
+      <PastVideosSection videos={pkoc.past_videos} />
+    </div>
+  );
+}
+
+function PastVideosSection({ videos }: { videos: import("@/lib/actions/proposals").KocVideoEntry[] }) {
+  const [open, setOpen] = useState(false);
+  if (videos.length === 0) return null;
+
+  return (
+    <div className="mt-3 border-t border-zinc-100 pt-3">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-800 transition-colors w-full"
+      >
+        <Video className="h-3 w-3" />
+        <span className="font-medium">{videos.length} video case stud{videos.length > 1 ? "ies" : "y"}</span>
+        {open ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
+      </button>
+      {open && (
+        <div className="mt-2 space-y-1.5">
+          {videos.map((v) => (
+            <div key={v.campaign_koc_id} className="flex items-start gap-2 bg-zinc-50 rounded px-2.5 py-2">
+              <Video className="h-3 w-3 text-zinc-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] text-zinc-500 truncate">
+                  {v.campaign_name} · {v.client_name}
+                </div>
+                <a
+                  href={v.video_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:underline flex items-center gap-0.5 mt-0.5 truncate"
+                >
+                  <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                  <span className="truncate">{v.video_url}</span>
+                </a>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
