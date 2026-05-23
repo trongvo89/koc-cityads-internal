@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Bell, Pencil } from "lucide-react";
+import { ArrowLeft, Bell, BarChart2 } from "lucide-react";
 import { getCampaignDetail } from "@/lib/actions/campaigns";
 import { getKocs } from "@/lib/actions/kocs";
 import { Button } from "@/components/ui/button";
@@ -97,6 +97,12 @@ export default async function CampaignDetailPage({
         </div>
 
         <div className="flex gap-2 flex-shrink-0">
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/admin/campaigns/${id}/report`}>
+              <BarChart2 className="h-4 w-4 mr-1.5" />
+              Báo cáo
+            </Link>
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href={`/admin/campaigns/${id}/reminders`}>
               <Bell className="h-4 w-4 mr-1.5" />
