@@ -23,7 +23,8 @@ export default async function UsersPage() {
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "super_admin") {
+  // Operator cannot access user management
+  if (!profile || (profile.role !== "super_admin" && profile.role !== "admin")) {
     redirect("/admin/dashboard");
   }
 
@@ -37,7 +38,7 @@ export default async function UsersPage() {
 
   return (
     <div>
-      <UsersPageClient users={users} clients={clients} />
+      <UsersPageClient users={users} clients={clients} currentRole={profile.role} />
     </div>
   );
 }

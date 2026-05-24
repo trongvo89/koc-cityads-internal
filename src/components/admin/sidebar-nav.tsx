@@ -22,14 +22,23 @@ const NAV_ITEMS = [
   { href: "/admin/clients", label: "Clients", icon: Building2 },
 ];
 
-const SUPER_ITEMS = [
+// Only super_admin sees statistics
+const STATS_ITEMS = [
   { href: "/admin/reports", label: "Thống kê", icon: BarChart3 },
+];
+
+// super_admin + admin can manage users; operator cannot
+const USERS_ITEMS = [
   { href: "/admin/users", label: "Users", icon: UserCog },
 ];
 
 export default function SidebarNav({ role }: { role: UserRole }) {
   const pathname = usePathname();
-  const items = role === "super_admin" ? [...NAV_ITEMS, ...SUPER_ITEMS] : NAV_ITEMS;
+  const items = [
+    ...NAV_ITEMS,
+    ...(role === "super_admin" || role === "admin" ? USERS_ITEMS : []),
+    ...(role === "super_admin" ? STATS_ITEMS : []),
+  ];
 
   return (
     <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">

@@ -47,11 +47,13 @@ export default function UserFormDialog({
   onClose,
   user,
   clients,
+  callerRole,
 }: {
   open: boolean;
   onClose: () => void;
   user?: UserListItem;
   clients: ClientListItem[];
+  callerRole: UserRole;
 }) {
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -147,11 +149,14 @@ export default function UserFormDialog({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(Object.entries(ROLE_LABELS) as [UserRole, string][]).map(([v, label]) => (
-                <SelectItem key={v} value={v}>
-                  {label}
-                </SelectItem>
-              ))}
+              {(Object.entries(ROLE_LABELS) as [UserRole, string][])
+                // Admin cannot assign super_admin role
+                .filter(([v]) => !(callerRole === "admin" && v === "super_admin"))
+                .map(([v, label]) => (
+                  <SelectItem key={v} value={v}>
+                    {label}
+                  </SelectItem>
+                ))}
             </SelectContent>
           </Select>
         </div>

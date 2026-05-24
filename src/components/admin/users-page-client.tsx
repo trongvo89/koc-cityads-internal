@@ -30,9 +30,11 @@ const ROLE_VARIANT: Record<
 export default function UsersPageClient({
   users,
   clients,
+  currentRole,
 }: {
   users: UserListItem[];
   clients: ClientListItem[];
+  currentRole: UserRole;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserListItem | undefined>();
@@ -132,35 +134,40 @@ export default function UsersPageClient({
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <div className="flex items-center gap-1 justify-end">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => openEdit(u)}
-                        title="Đổi role"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className={`h-7 w-7 ${
-                          u.banned
-                            ? "text-green-600 hover:text-green-700"
-                            : "text-red-500 hover:text-red-600"
-                        }`}
-                        onClick={() => handleToggleBan(u)}
-                        disabled={isPending}
-                        title={u.banned ? "Bỏ khoá" : "Khoá tài khoản"}
-                      >
-                        {u.banned ? (
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                        ) : (
-                          <Ban className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                    </div>
+                    {/* Admin cannot edit or ban super_admin accounts */}
+                    {currentRole === "admin" && u.role === "super_admin" ? (
+                      <span className="text-xs text-zinc-400 px-2">—</span>
+                    ) : (
+                      <div className="flex items-center gap-1 justify-end">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => openEdit(u)}
+                          title="Đổi role"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className={`h-7 w-7 ${
+                            u.banned
+                              ? "text-green-600 hover:text-green-700"
+                              : "text-red-500 hover:text-red-600"
+                          }`}
+                          onClick={() => handleToggleBan(u)}
+                          disabled={isPending}
+                          title={u.banned ? "Bỏ khoá" : "Khoá tài khoản"}
+                        >
+                          {u.banned ? (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          ) : (
+                            <Ban className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -174,6 +181,7 @@ export default function UsersPageClient({
         onClose={() => setDialogOpen(false)}
         user={editingUser}
         clients={clients}
+        callerRole={currentRole}
       />
     </>
   );

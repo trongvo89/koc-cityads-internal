@@ -75,6 +75,20 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/client/dashboard", request.url));
     }
 
+    // Statistics: super_admin only
+    if (pathname.startsWith("/admin/reports") && profile.role !== "super_admin") {
+      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    }
+
+    // User management: super_admin + admin only (operator cannot access)
+    if (
+      pathname.startsWith("/admin/users") &&
+      profile.role !== "super_admin" &&
+      profile.role !== "admin"
+    ) {
+      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    }
+
     // Client routes: require client role
     if (pathname.startsWith("/client/") && profile.role !== "client") {
       return NextResponse.redirect(new URL("/admin/dashboard", request.url));

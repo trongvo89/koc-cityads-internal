@@ -16,6 +16,14 @@ function createAdminClient() {
   );
 }
 
+async function getCallerRole(): Promise<UserRole | null> {
+  const supabase = await createServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  return (data?.role ?? null) as UserRole | null;
+}
+
 export type UserListItem = {
   id: string;
   email: string;
@@ -75,11 +83,21 @@ export type CreateUserData = z.infer<typeof CreateUserSchema>;
 export async function createUser(
   formData: CreateUserData
 ): Promise<ActionResult<{ id: string }>> {
+  const callerRole = await getCallerRole();
+  if (!callerRole || (callerRole !== "super_admin" && callerRole !== "admin")) {
+    return { success: false, error: "Không có quyền thực hiện" };
+  }
+
   const parsed = CreateUserSchema.safeParse(formData);
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
 
   const { email, password, full_name, role, client_id } = parsed.data;
+
+  // Admin cannot create super_admin accounts
+  if (callerRole === "admin" && role === "super_admin") {
+    return { success: false, error: "Admin không thể tạo tài khoản Super Admin" };
+  }
 
   if (role === "client" && !client_id) {
     return { success: false, error: "Role 'client' cần chọn công ty" };
@@ -116,6 +134,26 @@ export async function updateUserRole(
   newRole: UserRole,
   clientId?: string | null
 ): Promise<ActionResult> {
+  const callerRole = await getCallerRole();
+  if (!callerRole || (callerRole !== "super_admin" && callerRole !== "admin")) {
+    return { success: false, error: "Không có quyền thực hiện" };
+  }
+
+  if (callerRole === "admin") {
+    if (newRole === "super_admin") {
+      return { success: false, error: "Admin không thể cấp quyền Super Admin" };
+    }
+    const supabase = await createServerClient();
+    const { data: targetProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .single();
+    if (targetProfile?.role === "super_admin") {
+      return { success: false, error: "Admin không thể chỉnh sửa tài khoản Super Admin" };
+    }
+  }
+
   const supabase = await createServerClient();
   const { error } = await supabase.rpc("admin_update_user_role", {
     p_user_id: userId,
@@ -130,6 +168,23 @@ export async function updateUserRole(
 }
 
 export async function toggleUserBan(userId: string, ban: boolean): Promise<ActionResult> {
+  const callerRole = await getCallerRole();
+  if (!callerRole || (callerRole !== "super_admin" && callerRole !== "admin")) {
+    return { success: false, error: "Không có quyền thực hiện" };
+  }
+
+  if (callerRole === "admin") {
+    const supabase = await createServerClient();
+    const { data: targetProfile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", userId)
+      .single();
+    if (targetProfile?.role === "super_admin") {
+      return { success: false, error: "Admin không thể khoá tài khoản Super Admin" };
+    }
+  }
+
   const admin = createAdminClient();
   const { error } = await admin.auth.admin.updateUserById(userId, {
     ban_duration: ban ? "87600h" : "none",
