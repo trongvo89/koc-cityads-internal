@@ -37,35 +37,21 @@ export type UserListItem = {
 
 export async function getUsers(): Promise<ActionResult<UserListItem[]>> {
   const admin = createAdminClient();
-  const supabase = await createServerClient();
 
-  const [{ data: authData, error: authErr }, { data: profiles, error: profErr }] =
-    await Promise.all([
-      admin.auth.admin.listUsers({ perPage: 1000 }),
-      supabase
-        .from("profiles")
-        .select("id, full_name, role, client_id, clients(company_name)"),
-    ]);
+  const { data, error } = await admin.rpc("admin_list_users");
 
-  if (authErr) return { success: false, error: authErr.message };
-  if (profErr) return { success: false, error: profErr.message };
+  if (error) return { success: false, error: error.message };
 
-  const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
-
-  const users: UserListItem[] = (authData.users ?? []).map((u) => {
-    const profile = profileMap.get(u.id);
-    return {
-      id: u.id,
-      email: u.email ?? "",
-      full_name: profile?.full_name ?? u.email?.split("@")[0] ?? "?",
-      role: (profile?.role ?? "operator") as UserRole,
-      client_id: profile?.client_id ?? null,
-      client_name:
-        (profile?.clients as { company_name: string } | null)?.company_name ?? null,
-      created_at: u.created_at,
-      banned: !!u.banned_until && new Date(u.banned_until) > new Date(),
-    };
-  });
+  const users: UserListItem[] = (data ?? []).map((u) => ({
+    id: u.id,
+    email: u.email ?? "",
+    full_name: u.full_name ?? "?",
+    role: (u.role ?? "operator") as UserRole,
+    client_id: u.client_id ?? null,
+    client_name: u.client_name ?? null,
+    created_at: u.created_at,
+    banned: !!u.banned_until && new Date(u.banned_until) > new Date(),
+  }));
 
   return { success: true, data: users };
 }
