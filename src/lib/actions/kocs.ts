@@ -322,7 +322,7 @@ export type BulkKocRow = {
 
 export async function bulkCreateKocs(
   rows: BulkKocRow[]
-): Promise<ActionResult<{ created: number; skipped: string[] }>> {
+): Promise<ActionResult<{ created: number; skipped: string[]; duplicates: number }>> {
   if (rows.length === 0) return { success: false, error: "Không có dữ liệu để import." };
   if (rows.length > 500) return { success: false, error: "Tối đa 500 KOC mỗi lần import." };
 
@@ -330,7 +330,49 @@ export async function bulkCreateKocs(
   if (valid.length === 0) return { success: false, error: "Không có hàng nào có tên hợp lệ." };
 
   const supabase = await createClient();
-  const inserts = valid.map((r) => ({
+
+  // ── Duplicate check against DB ───────────────────────────────────────────────
+  const nameList = [...new Set(valid.map((r) => r.name.trim()))];
+  const urlList = [...new Set(valid.map((r) => r.tiktok_url?.trim()).filter((u): u is string => !!u))];
+
+  const [{ data: byName }, { data: byUrl }] = await Promise.all([
+    supabase.from("kocs").select("name, tiktok_url").in("name", nameList),
+    urlList.length > 0
+      ? supabase.from("kocs").select("name, tiktok_url").in("tiktok_url", urlList)
+      : Promise.resolve({ data: [] as { name: string; tiktok_url: string | null }[] }),
+  ]);
+
+  const existingNames = new Set([
+    ...(byName ?? []).map((k) => k.name.toLowerCase()),
+    ...(byUrl ?? []).map((k) => k.name.toLowerCase()),
+  ]);
+  const existingUrls = new Set([
+    ...(byName ?? []).map((k) => k.tiktok_url).filter(Boolean),
+    ...(byUrl ?? []).map((k) => k.tiktok_url).filter(Boolean),
+  ]);
+
+  const duplicateNames: string[] = [];
+  const toInsert = valid.filter((r) => {
+    const nameDupe = existingNames.has(r.name.trim().toLowerCase());
+    const urlDupe = !!(r.tiktok_url?.trim() && existingUrls.has(r.tiktok_url.trim()));
+    if (nameDupe || urlDupe) {
+      duplicateNames.push(r.name.trim());
+      return false;
+    }
+    return true;
+  });
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  const skipped = rows
+    .filter((r) => !r.name?.trim())
+    .map((_, i) => `Hàng ${i + 1}`);
+
+  if (toInsert.length === 0) {
+    revalidatePath("/admin/kocs");
+    return { success: true, data: { created: 0, skipped, duplicates: duplicateNames.length } };
+  }
+
+  const inserts = toInsert.map((r) => ({
     name: r.name.trim(),
     tiktok_url: r.tiktok_url || null,
     instagram_url: r.instagram_url || null,
@@ -346,10 +388,6 @@ export async function bulkCreateKocs(
   const { error } = await supabase.from("kocs").insert(inserts);
   if (error) return { success: false, error: error.message };
 
-  const skipped = rows
-    .filter((r) => !r.name?.trim())
-    .map((_, i) => `Hàng ${i + 1}`);
-
   revalidatePath("/admin/kocs");
-  return { success: true, data: { created: inserts.length, skipped } };
+  return { success: true, data: { created: inserts.length, skipped, duplicates: duplicateNames.length } };
 }

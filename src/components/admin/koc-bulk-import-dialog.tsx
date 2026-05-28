@@ -163,7 +163,23 @@ function parseText(raw: string): { rows: BulkKocRow[]; errors: string[] } {
     rows.push(row as BulkKocRow);
   }
 
-  return { rows, errors };
+  // Deduplicate within batch: same name (case-insensitive) or same tiktok_url
+  const seenNames = new Set<string>();
+  const seenUrls = new Set<string>();
+  const deduped: BulkKocRow[] = [];
+  for (const row of rows) {
+    const key = row.name.trim().toLowerCase();
+    const urlKey = row.tiktok_url?.trim() ?? "";
+    if (seenNames.has(key) || (urlKey && seenUrls.has(urlKey))) {
+      errors.push(`"${row.name}" trùng trong file — giữ dòng đầu tiên`);
+      continue;
+    }
+    seenNames.add(key);
+    if (urlKey) seenUrls.add(urlKey);
+    deduped.push(row);
+  }
+
+  return { rows: deduped, errors };
 }
 
 // ─── Template download ────────────────────────────────────────────────────────
@@ -196,7 +212,7 @@ export default function KocBulkImportDialog({
   const [preview, setPreview] = useState<ParsedRow[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
-  const [result, setResult] = useState<{ created: number; skipped: string[] } | null>(null);
+  const [result, setResult] = useState<{ created: number; skipped: string[]; duplicates: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   function handleParse(text: string) {
@@ -259,9 +275,14 @@ export default function KocBulkImportDialog({
             <p className="font-semibold text-zinc-900 text-lg">
               Đã import {result.created} KOC thành công!
             </p>
-            {result.skipped.length > 0 && (
+            {(result.skipped.length > 0 || result.duplicates > 0) && (
               <p className="text-sm text-zinc-500">
-                Bỏ qua {result.skipped.length} hàng không hợp lệ.
+                {[
+                  result.skipped.length > 0 && `${result.skipped.length} hàng không hợp lệ`,
+                  result.duplicates > 0 && `${result.duplicates} KOC đã tồn tại trong hệ thống`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")} — đã bỏ qua.
               </p>
             )}
             <div className="flex gap-2 justify-center pt-2">
