@@ -17,29 +17,73 @@ import type { BulkKocRow } from "@/lib/actions/kocs";
 // ─── CSV / TSV parser ─────────────────────────────────────────────────────────
 
 function detectSeparator(text: string): string {
-  const firstLine = text.split("\n")[0] ?? "";
-  return firstLine.split("\t").length > firstLine.split(",").length ? "\t" : ",";
+  // Scan first 500 chars outside of quotes to detect separator
+  let inQuote = false;
+  let tabs = 0, commas = 0;
+  for (let i = 0; i < Math.min(text.length, 500); i++) {
+    const ch = text[i];
+    if (ch === '"') { inQuote = !inQuote; continue; }
+    if (inQuote) continue;
+    if (ch === '\n') break;
+    if (ch === '\t') tabs++;
+    else if (ch === ',') commas++;
+  }
+  return tabs > commas ? "\t" : ",";
 }
 
-function parseCSVLine(line: string, sep: string): string[] {
-  if (sep === "\t") return line.split("\t").map((c) => c.trim());
-  // Handle quoted CSV fields
-  const result: string[] = [];
-  let cur = "";
+// Tokenize entire CSV/TSV respecting RFC 4180 multi-line quoted fields.
+// Returns array of rows, each row is array of cell strings (with embedded \n preserved).
+function tokenizeRows(raw: string, sep: string): string[][] {
+  const rows: string[][] = [];
+  let cells: string[] = [];
+  let cell = "";
   let inQuote = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuote && line[i + 1] === '"') { cur += '"'; i++; }
-      else inQuote = !inQuote;
-    } else if (ch === sep && !inQuote) {
-      result.push(cur.trim()); cur = "";
+
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (inQuote) {
+      if (ch === '"') {
+        if (raw[i + 1] === '"') { cell += '"'; i++; } // escaped ""
+        else inQuote = false;
+      } else {
+        cell += ch; // preserves embedded newlines inside quotes
+      }
     } else {
-      cur += ch;
+      if (ch === '"') {
+        inQuote = true;
+      } else if (ch === sep) {
+        cells.push(cell.trim()); cell = "";
+      } else if (ch === '\n') {
+        cells.push(cell.trim()); cell = "";
+        if (cells.some((c) => c.length > 0)) rows.push(cells);
+        cells = [];
+      } else if (ch !== '\r') {
+        cell += ch;
+      }
     }
   }
-  result.push(cur.trim());
-  return result;
+  cells.push(cell.trim());
+  if (cells.some((c) => c.length > 0)) rows.push(cells);
+  return rows;
+}
+
+// Parse follower counts including "1,6K" / "61,2K" / "1.2M" formats.
+function parseFollowerCount(val: string): number | null {
+  const s = val.trim().toUpperCase().replace(/\s/g, "");
+  if (!s) return null;
+
+  const kMatch = s.match(/^([\d]+[,.][\d]+)K$|^([\d]+)K$/);
+  if (kMatch) {
+    const n = parseFloat((kMatch[1] ?? kMatch[2]).replace(",", "."));
+    return isNaN(n) ? null : Math.round(n * 1000);
+  }
+  const mMatch = s.match(/^([\d]+[,.][\d]+)M$|^([\d]+)M$/);
+  if (mMatch) {
+    const n = parseFloat((mMatch[1] ?? mMatch[2]).replace(",", "."));
+    return isNaN(n) ? null : Math.round(n * 1_000_000);
+  }
+  const n = parseInt(s.replace(/[^0-9]/g, ""), 10);
+  return isNaN(n) ? null : n;
 }
 
 // Column name aliases → canonical field
@@ -58,11 +102,12 @@ const COL_MAP: Record<string, keyof BulkKocRow> = {
 };
 
 function parseText(raw: string): { rows: BulkKocRow[]; errors: string[] } {
-  const lines = raw.split("\n").map((l) => l.trimEnd()).filter((l) => l.trim());
-  if (lines.length < 2) return { rows: [], errors: ["Cần ít nhất 1 hàng tiêu đề và 1 hàng dữ liệu."] };
-
   const sep = detectSeparator(raw);
-  const headers = parseCSVLine(lines[0], sep).map((h) => h.toLowerCase().trim());
+  const allRows = tokenizeRows(raw, sep);
+
+  if (allRows.length < 2) return { rows: [], errors: ["Cần ít nhất 1 hàng tiêu đề và 1 hàng dữ liệu."] };
+
+  const headers = allRows[0].map((h) => h.toLowerCase().trim());
   const fieldMap: (keyof BulkKocRow | null)[] = headers.map((h) => COL_MAP[h] ?? null);
 
   if (!fieldMap.includes("name")) {
@@ -72,22 +117,44 @@ function parseText(raw: string): { rows: BulkKocRow[]; errors: string[] } {
   const rows: BulkKocRow[] = [];
   const errors: string[] = [];
 
-  for (let i = 1; i < lines.length; i++) {
-    const cells = parseCSVLine(lines[i], sep);
-    const row: Partial<BulkKocRow> = {};
+  for (let i = 1; i < allRows.length; i++) {
+    const cells = allRows[i];
 
+    // First pass: collect all raw values by field
+    const rawVals: Partial<Record<keyof BulkKocRow, string>> = {};
     fieldMap.forEach((field, idx) => {
       if (!field) return;
+      const existing = rawVals[field];
       const val = cells[idx]?.trim() ?? "";
+      // prefer non-empty value; explicit column beats derived
+      if (!existing || val) rawVals[field] = val;
+    });
+
+    const row: Partial<BulkKocRow> = {};
+
+    // Process each field
+    for (const [field, val] of Object.entries(rawVals) as [keyof BulkKocRow, string][]) {
       if (field === "follower") {
-        const n = parseInt(val.replace(/[^0-9]/g, ""), 10);
-        row.follower = isNaN(n) ? null : n;
+        row.follower = parseFollowerCount(val);
       } else if (field === "category") {
         row.category = val ? val.split(",").map((s) => s.trim()).filter(Boolean) : null;
       } else {
         (row as Record<string, string | null>)[field] = val || null;
       }
-    });
+    }
+
+    // Post-process: handle multi-line name cells like "@handle\nDisplay Name"
+    // (happens when TikTok account name cells contain both handle and channel name)
+    if (row.name?.includes("\n")) {
+      const parts = row.name.split("\n").map((p) => p.trim()).filter(Boolean);
+      const handle = parts.find((p) => p.startsWith("@"));
+      const displayName = parts.find((p) => !p.startsWith("@"));
+      row.name = displayName ?? handle ?? row.name;
+      // auto-fill tiktok_url from handle if no explicit tiktok_url column was provided
+      if (handle && !row.tiktok_url) {
+        row.tiktok_url = `https://www.tiktok.com/${handle}`;
+      }
+    }
 
     if (!row.name?.trim()) {
       errors.push(`Hàng ${i + 1}: thiếu tên KOC — bỏ qua`);
