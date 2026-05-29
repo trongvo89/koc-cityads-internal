@@ -157,6 +157,33 @@ function parseText(raw: string): { rows: BulkKocRow[]; errors: string[] } {
     }
 
     if (!row.name?.trim()) {
+      // May be a continuation row — Excel sometimes pastes a cell's value on the
+      // next line as "\t\t\tvalue" when the cell had a trailing newline.
+      // If this nameless row has any other data, merge it into the previous row
+      // rather than discarding it.
+      const hasOtherData =
+        (row.category?.length ?? 0) > 0 ||
+        row.follower != null ||
+        row.tiktok_url ||
+        row.instagram_url ||
+        row.facebook_url ||
+        row.phone ||
+        row.zalo ||
+        row.location;
+
+      if (hasOtherData && rows.length > 0) {
+        const prev = rows[rows.length - 1];
+        if (!(prev.category?.length) && row.category?.length) prev.category = row.category;
+        if (prev.follower == null && row.follower != null) prev.follower = row.follower;
+        if (!prev.tiktok_url && row.tiktok_url) prev.tiktok_url = row.tiktok_url;
+        if (!prev.instagram_url && row.instagram_url) prev.instagram_url = row.instagram_url;
+        if (!prev.facebook_url && row.facebook_url) prev.facebook_url = row.facebook_url;
+        if (!prev.phone && row.phone) prev.phone = row.phone;
+        if (!prev.zalo && row.zalo) prev.zalo = row.zalo;
+        if (!prev.location && row.location) prev.location = row.location;
+        continue;
+      }
+
       errors.push(`Hàng ${i + 1}: thiếu tên KOC — bỏ qua`);
       continue;
     }
