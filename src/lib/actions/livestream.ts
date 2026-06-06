@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/types/app.types";
 import type { ScriptSection } from "./ai-generation";
 
@@ -654,4 +654,47 @@ export async function getScriptsForSelect(): Promise<{ script_id: string; title:
     .neq("status", "archived")
     .order("title");
   return (data ?? []) as { script_id: string; title: string; status: string }[];
+}
+
+// ─── Teleprompter (public — no RTMP credentials) ──────────────────────────────
+
+export type TeleprompterData = {
+  session_id: string;
+  title: string;
+  platform: string;
+  status: string;
+  host_name: string | null;
+  script_title: string | null;
+  sections: ScriptSection[];
+};
+
+export async function getTeleprompterData(
+  session_id: string
+): Promise<ActionResult<TeleprompterData>> {
+  // Service client bypasses RLS — safe here because we return no sensitive fields
+  const supabase = await createServiceClient();
+
+  const { data, error } = await supabase
+    .from("live_sessions")
+    .select("session_id, title, platform, status, ai_hosts(name), live_scripts(title, script_sections)")
+    .eq("session_id", session_id)
+    .single();
+
+  if (error) return { success: false, error: error.message };
+
+  const s = data as Record<string, unknown>;
+  const script = s.live_scripts as { title: string; script_sections: ScriptSection[] } | null;
+
+  return {
+    success: true,
+    data: {
+      session_id: s.session_id as string,
+      title: s.title as string,
+      platform: s.platform as string,
+      status: s.status as string,
+      host_name: (s.ai_hosts as { name: string } | null)?.name ?? null,
+      script_title: script?.title ?? null,
+      sections: script?.script_sections ?? [],
+    },
+  };
 }

@@ -13,6 +13,7 @@ import {
   Radio,
   ChevronDown,
   ChevronUp,
+  MonitorPlay,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,6 +122,14 @@ export default function SessionDetailClient({ session }: { session: SessionDetai
             <Badge variant="secondary">{PLATFORM_LABEL[session.platform] ?? session.platform}</Badge>
           </div>
         </div>
+        {session.script_id && (
+          <Link href={`/live/${session.session_id}`} target="_blank">
+            <Button variant="outline" size="sm">
+              <MonitorPlay className="h-4 w-4 mr-1.5" />
+              Teleprompter
+            </Button>
+          </Link>
+        )}
       </div>
 
       {error && (
