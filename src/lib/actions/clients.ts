@@ -21,30 +21,22 @@ export async function getClients(): Promise<ActionResult<ClientListItem[]>> {
 
   const { data, error } = await supabase
     .from("clients")
-    .select("client_id, company_name, contact_name, email, phone, status, created_at")
+    .select("client_id, company_name, contact_name, email, phone, status, created_at, campaigns(count)")
     .order("company_name");
 
   if (error) return { success: false, error: error.message };
 
-  const ids = (data ?? []).map((c) => c.client_id);
-  const countMap = new Map<string, number>();
-
-  if (ids.length > 0) {
-    const { data: campaigns } = await supabase
-      .from("campaigns")
-      .select("client_id")
-      .in("client_id", ids);
-
-    for (const c of campaigns ?? []) {
-      countMap.set(c.client_id, (countMap.get(c.client_id) ?? 0) + 1);
-    }
-  }
-
   return {
     success: true,
     data: (data ?? []).map((c) => ({
-      ...c,
-      campaign_count: countMap.get(c.client_id) ?? 0,
+      client_id: c.client_id,
+      company_name: c.company_name,
+      contact_name: c.contact_name,
+      email: c.email,
+      phone: c.phone,
+      status: c.status,
+      created_at: c.created_at,
+      campaign_count: Number((c.campaigns as unknown as [{ count: number }])[0]?.count ?? 0),
     })),
   };
 }

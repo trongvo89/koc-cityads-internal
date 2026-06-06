@@ -83,24 +83,10 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
 
   const { data, error } = await supabase
     .from("campaigns")
-    .select("campaign_id, campaign_name, brief, status, package_size, contract_value, start_date, end_date, created_at, clients(company_name)")
+    .select("campaign_id, campaign_name, brief, status, package_size, contract_value, start_date, end_date, created_at, clients(company_name), campaign_kocs(count)")
     .order("created_at", { ascending: false });
 
   if (error) return { success: false, error: error.message };
-
-  const ids = (data ?? []).map((c) => c.campaign_id);
-  const countMap = new Map<string, number>();
-
-  if (ids.length > 0) {
-    const { data: kocRows } = await supabase
-      .from("campaign_kocs")
-      .select("campaign_id")
-      .in("campaign_id", ids);
-
-    for (const k of kocRows ?? []) {
-      countMap.set(k.campaign_id, (countMap.get(k.campaign_id) ?? 0) + 1);
-    }
-  }
 
   return {
     success: true,
@@ -110,7 +96,7 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
       client_name: (c.clients as { company_name: string } | null)?.company_name ?? "—",
       status: c.status,
       package_size: c.package_size,
-      koc_count: countMap.get(c.campaign_id) ?? 0,
+      koc_count: Number((c.campaign_kocs as unknown as [{ count: number }])[0]?.count ?? 0),
       start_date: c.start_date,
       end_date: c.end_date,
       brief: c.brief,

@@ -21,45 +21,52 @@ export async function getDashboardMetrics(): Promise<ActionResult<DashboardMetri
   monthStart.setHours(0, 0, 0, 0);
 
   const [
-    { data: kocs, error: ke },
-    { data: campaigns, error: ce },
-    { data: proposals, error: prope },
-    { data: campaignKocs, error: cke },
-    { data: perfRows, error: pe },
+    { count: totalKocs, error: ke },
+    { count: activeCampaigns, error: ce },
+    { count: draftProposals, error: dpe },
+    { count: sentProposals, error: spe },
+    { count: pendingApprovals, error: pae },
+    { count: videosThisMonth, error: vme },
+    { count: topRatedKocs, error: tpe },
   ] = await Promise.all([
-    supabase.from("kocs").select("status"),
-    supabase.from("campaigns").select("status"),
-    supabase.from("proposals").select("status"),
+    supabase.from("kocs").select("*", { count: "exact", head: true }).eq("status", "active"),
+    supabase.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "active"),
+    supabase.from("proposals").select("*", { count: "exact", head: true }).eq("status", "draft"),
+    supabase.from("proposals").select("*", { count: "exact", head: true }).eq("status", "sent"),
     supabase
       .from("campaign_kocs")
-      .select("operation_status, video_url, video_submitted_at"),
+      .select("*", { count: "exact", head: true })
+      .eq("operation_status", "sent_to_client"),
+    supabase
+      .from("campaign_kocs")
+      .select("*", { count: "exact", head: true })
+      .not("video_url", "is", null)
+      .gte("video_submitted_at", monthStart.toISOString()),
     supabase
       .from("koc_performance_summary")
-      .select("avg_rating, rating_count"),
+      .select("*", { count: "exact", head: true })
+      .gte("avg_rating", 4)
+      .gte("rating_count", 2),
   ]);
 
   if (ke) return { success: false, error: ke.message };
   if (ce) return { success: false, error: ce.message };
-  if (prope) return { success: false, error: prope.message };
-  if (cke) return { success: false, error: cke.message };
-  if (pe) return { success: false, error: pe.message };
-
-  const ck = campaignKocs ?? [];
+  if (dpe) return { success: false, error: dpe.message };
+  if (spe) return { success: false, error: spe.message };
+  if (pae) return { success: false, error: pae.message };
+  if (vme) return { success: false, error: vme.message };
+  if (tpe) return { success: false, error: tpe.message };
 
   return {
     success: true,
     data: {
-      totalKocs: (kocs ?? []).filter((k) => k.status === "active").length,
-      activeCampaigns: (campaigns ?? []).filter((c) => c.status === "active").length,
-      topRatedKocs: (perfRows ?? []).filter(
-        (p) => Number(p.avg_rating ?? 0) >= 4 && Number(p.rating_count ?? 0) >= 2
-      ).length,
-      draftProposals: (proposals ?? []).filter((p) => p.status === "draft").length,
-      sentProposals: (proposals ?? []).filter((p) => p.status === "sent").length,
-      pendingApprovals: ck.filter((r) => r.operation_status === "sent_to_client").length,
-      videosThisMonth: ck.filter(
-        (r) => r.video_url && r.video_submitted_at && new Date(r.video_submitted_at) >= monthStart
-      ).length,
+      totalKocs: totalKocs ?? 0,
+      activeCampaigns: activeCampaigns ?? 0,
+      topRatedKocs: topRatedKocs ?? 0,
+      draftProposals: draftProposals ?? 0,
+      sentProposals: sentProposals ?? 0,
+      pendingApprovals: pendingApprovals ?? 0,
+      videosThisMonth: videosThisMonth ?? 0,
     },
   };
 }
