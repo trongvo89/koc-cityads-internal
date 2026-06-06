@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { generateLiveScript } from "@/lib/actions/ai-generation";
 import { updateScript, saveScriptSections } from "@/lib/actions/livestream";
-import type { ScriptDetail } from "@/lib/actions/livestream";
+import type { ScriptDetail, AiHostListItem, ProductListItem } from "@/lib/actions/livestream";
 import type { ScriptSection } from "@/lib/actions/ai-generation";
 
 const SECTION_LABEL: Record<string, string> = {
@@ -43,8 +43,8 @@ const SECTION_COLOR: Record<string, string> = {
 
 type Props = {
   script: ScriptDetail;
-  hosts: { host_id: string; name: string }[];
-  products: { product_id: string; name: string }[];
+  hosts: AiHostListItem[];
+  products: ProductListItem[];
 };
 
 function formatDuration(seconds: number) {
@@ -91,17 +91,17 @@ export default function ScriptDetailClient({ script: initial, hosts, products }:
       const result = await generateLiveScript({
         product: {
           name: selectedProduct?.name ?? "Sản phẩm",
-          description: null,
-          key_features: null,
-          usp: null,
-          target_audience: null,
-          price_range: null,
+          description: selectedProduct?.description ?? null,
+          key_features: selectedProduct?.key_features ?? null,
+          usp: selectedProduct?.usp ?? null,
+          target_audience: selectedProduct?.target_audience ?? null,
+          price_range: selectedProduct?.price_range ?? null,
         },
         host: {
           name: selectedHost?.name ?? "Host",
-          personality: null,
-          voice_style: null,
-          selling_style: null,
+          personality: selectedHost?.personality ?? null,
+          voice_style: selectedHost?.voice_style ?? null,
+          selling_style: selectedHost?.selling_style ?? null,
         },
         brief,
         duration_minutes: parseInt(duration) || 30,
