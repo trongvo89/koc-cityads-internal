@@ -61,6 +61,54 @@ export type Database = {
           },
         ]
       }
+      ai_hosts: {
+        Row: {
+          avatar_external_id: string | null
+          avatar_provider: string | null
+          avatar_url: string | null
+          created_at: string
+          created_by: string | null
+          generation_brief: string | null
+          host_id: string
+          name: string
+          personality: string | null
+          selling_style: string | null
+          status: string
+          updated_at: string
+          voice_style: string | null
+        }
+        Insert: {
+          avatar_external_id?: string | null
+          avatar_provider?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          generation_brief?: string | null
+          host_id?: string
+          name: string
+          personality?: string | null
+          selling_style?: string | null
+          status?: string
+          updated_at?: string
+          voice_style?: string | null
+        }
+        Update: {
+          avatar_external_id?: string | null
+          avatar_provider?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          generation_brief?: string | null
+          host_id?: string
+          name?: string
+          personality?: string | null
+          selling_style?: string | null
+          status?: string
+          updated_at?: string
+          voice_style?: string | null
+        }
+        Relationships: []
+      }
       api_connections: {
         Row: {
           api_key: string
@@ -879,6 +927,167 @@ export type Database = {
           },
         ]
       }
+      live_scripts: {
+        Row: {
+          ai_generated: boolean
+          brief: string | null
+          created_at: string
+          created_by: string | null
+          duration_minutes: number | null
+          host_id: string | null
+          product_id: string | null
+          script_id: string
+          script_sections: Json
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          ai_generated?: boolean
+          brief?: string | null
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number | null
+          host_id?: string | null
+          product_id?: string | null
+          script_id?: string
+          script_sections?: Json
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          ai_generated?: boolean
+          brief?: string | null
+          created_at?: string
+          created_by?: string | null
+          duration_minutes?: number | null
+          host_id?: string | null
+          product_id?: string | null
+          script_id?: string
+          script_sections?: Json
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_scripts_host_id_fkey"
+            columns: ["host_id"]
+            isOneToOne: false
+            referencedRelation: "ai_hosts"
+            referencedColumns: ["host_id"]
+          },
+          {
+            foreignKeyName: "live_scripts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_knowledge"
+            referencedColumns: ["product_id"]
+          },
+        ]
+      }
+      live_sessions: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          created_by: string | null
+          ended_at: string | null
+          gmv: number | null
+          host_id: string | null
+          notes: string | null
+          peak_viewers: number | null
+          platform: string
+          report_notes: string | null
+          rtmp_url: string | null
+          scheduled_at: string | null
+          script_id: string | null
+          session_id: string
+          started_at: string | null
+          status: string
+          stream_key: string | null
+          stream_link: string | null
+          title: string
+          total_orders: number | null
+          updated_at: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ended_at?: string | null
+          gmv?: number | null
+          host_id?: string | null
+          notes?: string | null
+          peak_viewers?: number | null
+          platform?: string
+          report_notes?: string | null
+          rtmp_url?: string | null
+          scheduled_at?: string | null
+          script_id?: string | null
+          session_id?: string
+          started_at?: string | null
+          status?: string
+          stream_key?: string | null
+          stream_link?: string | null
+          title: string
+          total_orders?: number | null
+          updated_at?: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          ended_at?: string | null
+          gmv?: number | null
+          host_id?: string | null
+          notes?: string | null
+          peak_viewers?: number | null
+          platform?: string
+          report_notes?: string | null
+          rtmp_url?: string | null
+          scheduled_at?: string | null
+          script_id?: string | null
+          session_id?: string
+          started_at?: string | null
+          status?: string
+          stream_key?: string | null
+          stream_link?: string | null
+          title?: string
+          total_orders?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_sessions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "live_sessions_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "client_campaign_kocs_view"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "live_sessions_host_id_fkey"
+            columns: ["host_id"]
+            isOneToOne: false
+            referencedRelation: "ai_hosts"
+            referencedColumns: ["host_id"]
+          },
+          {
+            foreignKeyName: "live_sessions_script_id_fkey"
+            columns: ["script_id"]
+            isOneToOne: false
+            referencedRelation: "live_scripts"
+            referencedColumns: ["script_id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           campaign_koc_id: string
@@ -1137,6 +1346,69 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_knowledge: {
+        Row: {
+          campaign_id: string | null
+          category: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          key_features: string[] | null
+          name: string
+          price_range: string | null
+          product_id: string
+          sourced_from: string
+          target_audience: string | null
+          updated_at: string
+          usp: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          key_features?: string[] | null
+          name: string
+          price_range?: string | null
+          product_id?: string
+          sourced_from?: string
+          target_audience?: string | null
+          updated_at?: string
+          usp?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          key_features?: string[] | null
+          name?: string
+          price_range?: string | null
+          product_id?: string
+          sourced_from?: string
+          target_audience?: string | null
+          updated_at?: string
+          usp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_knowledge_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["campaign_id"]
+          },
+          {
+            foreignKeyName: "product_knowledge_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "client_campaign_kocs_view"
+            referencedColumns: ["campaign_id"]
           },
         ]
       }
@@ -2032,4 +2304,3 @@ export const Constants = {
     },
   },
 } as const
-
