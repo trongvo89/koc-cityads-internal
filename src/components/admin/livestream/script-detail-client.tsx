@@ -232,12 +232,12 @@ export default function ScriptDetailClient({ script: initial, hosts, products }:
 
             <div className="space-y-2">
               <Label>AI Host</Label>
-              <Select value={hostId} onValueChange={setHostId}>
+              <Select value={hostId || "__none__"} onValueChange={(v) => setHostId(v === "__none__" ? "" : v)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Chọn host..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Không chọn</SelectItem>
+                  <SelectItem value="__none__">Không chọn</SelectItem>
                   {hosts.map((h) => (
                     <SelectItem key={h.host_id} value={h.host_id}>{h.name}</SelectItem>
                   ))}
