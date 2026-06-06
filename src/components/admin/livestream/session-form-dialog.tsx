@@ -76,7 +76,7 @@ export default function SessionFormDialog({ open, hosts, scripts, campaigns, onC
       const result = await createSession({
         title,
         platform: platform as "tiktok" | "shopee" | "lazada" | "facebook" | "youtube" | "other",
-        scheduled_at: scheduledAt || null,
+        scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
         host_id: hostId || null,
         script_id: scriptId || null,
         campaign_id: campaignId || null,
