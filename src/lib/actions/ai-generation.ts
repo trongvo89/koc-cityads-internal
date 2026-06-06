@@ -1,7 +1,5 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
-
 export type GeneratedHostPersona = {
   name: string;
   personality: string;
@@ -30,6 +28,7 @@ export async function generateHostPersona(
   if (!process.env.ANTHROPIC_API_KEY) {
     return { success: false, error: "ANTHROPIC_API_KEY chưa được cấu hình" };
   }
+  const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const anthropic = new Anthropic();
 
   const prompt = `Bạn là chuyên gia tạo nhân vật AI host cho TikTok Live e-commerce. Dựa trên brief sau, tạo một host persona.
@@ -88,6 +87,7 @@ export async function generateLiveScript(
   if (!process.env.ANTHROPIC_API_KEY) {
     return { success: false, error: "ANTHROPIC_API_KEY chưa được cấu hình" };
   }
+  const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const anthropic = new Anthropic();
   const { product, host, brief, duration_minutes } = params;
   const totalSeconds = duration_minutes * 60;
