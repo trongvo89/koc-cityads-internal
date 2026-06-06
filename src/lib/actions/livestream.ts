@@ -49,6 +49,7 @@ export type ScriptListItem = {
 
 export type ScriptDetail = ScriptListItem & {
   brief: string | null;
+  voice_id: string | null;
   script_sections: ScriptSection[];
 };
 
@@ -308,7 +309,7 @@ export async function getScriptDetail(script_id: string): Promise<ActionResult<S
   const { data, error } = await supabase
     .from("live_scripts")
     .select(
-      "script_id, title, product_id, host_id, duration_minutes, status, ai_generated, brief, script_sections, created_at, product_knowledge(name), ai_hosts(name)"
+      "script_id, title, product_id, host_id, duration_minutes, status, ai_generated, brief, voice_id, script_sections, created_at, product_knowledge(name), ai_hosts(name)"
     )
     .eq("script_id", script_id)
     .single();
@@ -329,6 +330,7 @@ export async function getScriptDetail(script_id: string): Promise<ActionResult<S
       status: s.status as "draft" | "approved" | "archived",
       ai_generated: s.ai_generated as boolean,
       brief: s.brief as string | null,
+      voice_id: s.voice_id as string | null,
       script_sections: (s.script_sections as ScriptSection[]) ?? [],
       created_at: s.created_at as string,
     },

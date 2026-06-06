@@ -19,6 +19,7 @@ export type ScriptSection = {
     | "outro";
   content: string;
   duration_seconds: number;
+  audio_url?: string | null;
 };
 
 export async function generateHostPersona(
