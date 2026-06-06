@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { generateLiveScript } from "@/lib/actions/ai-generation";
-import { updateScript, saveScriptSections, getProductsForSelect } from "@/lib/actions/livestream";
+import { updateScript, saveScriptSections } from "@/lib/actions/livestream";
 import type { ScriptDetail } from "@/lib/actions/livestream";
 import type { ScriptSection } from "@/lib/actions/ai-generation";
 
@@ -75,12 +75,6 @@ export default function ScriptDetailClient({ script: initial, hosts, products }:
       next[index] = { ...next[index], content };
       return next;
     });
-  }
-
-  async function fetchProductDetail(pid: string) {
-    if (!pid) return null;
-    const supabaseResp = await fetch(`/api/product-knowledge/${pid}`).catch(() => null);
-    return null;
   }
 
   function handleGenerate() {
