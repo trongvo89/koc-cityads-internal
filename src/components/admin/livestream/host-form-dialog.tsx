@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useRouter } from "next/navigation";
 import { generateHostPersona } from "@/lib/actions/ai-generation";
 import { createHost, updateHost } from "@/lib/actions/livestream";
 import type { AiHostListItem } from "@/lib/actions/livestream";
@@ -46,6 +47,7 @@ type Props = {
 
 export default function HostFormDialog({ open, host, onClose }: Props) {
   const isEdit = !!host;
+  const router = useRouter();
   const [name, setName] = useState(host?.name ?? "");
   const [personality, setPersonality] = useState(host?.personality ?? "");
   const [voiceStyle, setVoiceStyle] = useState(host?.voice_style ?? "");
@@ -107,6 +109,7 @@ export default function HostFormDialog({ open, host, onClose }: Props) {
         ? await updateHost(host.host_id, data)
         : await createHost(data);
       if (result.success) {
+        router.refresh();
         handleClose();
       } else {
         setError(result.error);

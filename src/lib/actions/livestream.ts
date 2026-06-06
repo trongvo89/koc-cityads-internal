@@ -646,12 +646,12 @@ export async function getProductsForSelect(): Promise<{ product_id: string; name
   return (data ?? []) as { product_id: string; name: string }[];
 }
 
-export async function getScriptsForSelect(): Promise<{ script_id: string; title: string }[]> {
+export async function getScriptsForSelect(): Promise<{ script_id: string; title: string; status: string }[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("live_scripts")
-    .select("script_id, title")
-    .eq("status", "approved")
+    .select("script_id, title, status")
+    .neq("status", "archived")
     .order("title");
-  return (data ?? []) as { script_id: string; title: string }[];
+  return (data ?? []) as { script_id: string; title: string; status: string }[];
 }

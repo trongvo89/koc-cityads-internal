@@ -35,7 +35,7 @@ const PLATFORM_LABEL: Record<string, string> = {
 type Props = {
   open: boolean;
   hosts: { host_id: string; name: string }[];
-  scripts: { script_id: string; title: string }[];
+  scripts: { script_id: string; title: string; status: string }[];
   campaigns: { campaign_id: string; campaign_name: string }[];
   onClose: () => void;
 };
@@ -160,7 +160,9 @@ export default function SessionFormDialog({ open, hosts, scripts, campaigns, onC
                 <SelectContent>
                   <SelectItem value="">Không có</SelectItem>
                   {scripts.map((s) => (
-                    <SelectItem key={s.script_id} value={s.script_id}>{s.title}</SelectItem>
+                    <SelectItem key={s.script_id} value={s.script_id}>
+                      {s.title}{s.status !== "approved" ? " (nháp)" : ""}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

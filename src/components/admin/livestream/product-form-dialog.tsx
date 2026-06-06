@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useRouter } from "next/navigation";
 import { createProduct, updateProduct, importProductFromCampaign } from "@/lib/actions/livestream";
 import type { ProductListItem } from "@/lib/actions/livestream";
 
@@ -34,6 +35,7 @@ type Props = {
 export default function ProductFormDialog({ open, product, campaigns, mode, onClose }: Props) {
   const isEdit = mode === "edit";
   const isImport = mode === "import";
+  const router = useRouter();
 
   const [name, setName] = useState(product?.name ?? "");
   const [category, setCategory] = useState(product?.category ?? "");
@@ -73,7 +75,7 @@ export default function ProductFormDialog({ open, product, campaigns, mode, onCl
       }
       startSave(async () => {
         const result = await importProductFromCampaign(selectedCampaign);
-        if (result.success) handleClose();
+        if (result.success) { router.refresh(); handleClose(); }
         else setError(result.error);
       });
       return;
@@ -100,7 +102,7 @@ export default function ProductFormDialog({ open, product, campaigns, mode, onCl
       const result = isEdit
         ? await updateProduct(product!.product_id, data)
         : await createProduct(data);
-      if (result.success) handleClose();
+      if (result.success) { router.refresh(); handleClose(); }
       else setError(result.error);
     });
   }

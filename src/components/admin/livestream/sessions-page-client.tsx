@@ -34,7 +34,7 @@ const PLATFORM_LABEL: Record<string, string> = {
 type Props = {
   sessions: SessionListItem[];
   hosts: { host_id: string; name: string }[];
-  scripts: { script_id: string; title: string }[];
+  scripts: { script_id: string; title: string; status: string }[];
   campaigns: { campaign_id: string; campaign_name: string }[];
 };
 
