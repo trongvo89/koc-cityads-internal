@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Sparkles, Save, CheckCircle, Clock, Loader2, Grip,
   Play, Pause, Mic, MicOff, Video, VideoOff, RefreshCw, Plus, Trash2,
+  BookOpen, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,10 +23,12 @@ import { generateLiveScript } from "@/lib/actions/ai-generation";
 import { updateScript, saveScriptSections } from "@/lib/actions/livestream";
 import { generateSectionAudio, generateAllSectionsAudio, updateScriptVoice, cloneVoice, deleteClonedVoice } from "@/lib/actions/audio";
 import { generateSectionVideo, generateAllSectionVideos, checkSectionVideoStatus } from "@/lib/actions/video";
+import { getInsightsForReferences, getApprovedScriptsByCategory } from "@/lib/actions/references";
 import type { ScriptDetail, AiHostListItem, ProductListItem } from "@/lib/actions/livestream";
 import type { ScriptSection } from "@/lib/actions/ai-generation";
 import type { ElevenLabsVoice } from "@/lib/actions/audio";
 import type { HeyGenAvatar } from "@/lib/actions/video";
+import type { ReferenceMaterial } from "@/lib/actions/references";
 
 const SECTION_LABEL: Record<string, string> = {
   intro: "Mở đầu", hook: "Hook", product_intro: "Giới thiệu SP",
@@ -46,6 +49,7 @@ type Props = {
   products: ProductListItem[];
   voices: ElevenLabsVoice[];
   avatars: HeyGenAvatar[];
+  references?: ReferenceMaterial[];
 };
 
 function formatDuration(seconds: number) {
@@ -75,7 +79,7 @@ function AudioPlayer({ url }: { url: string }) {
   );
 }
 
-export default function ScriptDetailClient({ script: initial, hosts, products, voices: initialVoices, avatars }: Props) {
+export default function ScriptDetailClient({ script: initial, hosts, products, voices: initialVoices, avatars, references = [] }: Props) {
   const router = useRouter();
   const [sections, setSections] = useState<ScriptSection[]>(initial.script_sections);
   const [status, setStatus] = useState(initial.status);
@@ -95,6 +99,11 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
   const [isGenerating, startGenerate] = useTransition();
   const [isSaving, startSave] = useTransition();
   const [isApproving, startApprove] = useTransition();
+
+  // Reference selector state
+  const [refPanelOpen, setRefPanelOpen] = useState(false);
+  const [selectedRefIds, setSelectedRefIds] = useState<Set<string>>(new Set());
+  const [includeApprovedScripts, setIncludeApprovedScripts] = useState(false);
 
   // Voice cloning state
   const [cloneOpen, setCloneOpen] = useState(false);
@@ -154,6 +163,15 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
     const selectedProduct = products.find((p) => p.product_id === productId);
     const selectedHost = hosts.find((h) => h.host_id === hostId);
     startGenerate(async () => {
+      // Fetch reference insights if selected
+      const refIds = Array.from(selectedRefIds);
+      const [insightsResult, approvedResult] = await Promise.all([
+        refIds.length > 0 ? getInsightsForReferences(refIds) : Promise.resolve({ success: true as const, data: [] }),
+        includeApprovedScripts
+          ? getApprovedScriptsByCategory(selectedProduct?.category ?? null)
+          : Promise.resolve({ success: true as const, data: [] }),
+      ]);
+
       const result = await generateLiveScript({
         product: {
           name: selectedProduct?.name ?? "Sản phẩm",
@@ -171,6 +189,8 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
         },
         brief,
         duration_minutes: parseInt(duration) || 30,
+        references: insightsResult.success ? insightsResult.data : undefined,
+        approvedScripts: approvedResult.success ? approvedResult.data : undefined,
       });
       if (result.success) setSections(result.data);
       else setError(result.error);
@@ -409,6 +429,99 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
                 <Sparkles className="h-4 w-4 mr-1.5" />}
               {isGenerating ? "Đang tạo..." : "Tạo kịch bản AI"}
             </Button>
+          </div>
+
+          {/* Reference selector panel */}
+          <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setRefPanelOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 transition-colors"
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-violet-500" />
+                <span>1b. Tư liệu tham khảo</span>
+                {selectedRefIds.size > 0 && (
+                  <span className="bg-violet-100 text-violet-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                    {selectedRefIds.size} đã chọn
+                  </span>
+                )}
+              </div>
+              {refPanelOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+            {refPanelOpen && (
+              <div className="px-4 pb-4 space-y-3 border-t border-zinc-100">
+                {references.length === 0 ? (
+                  <div className="py-4 text-center">
+                    <p className="text-xs text-zinc-400">Chưa có tư liệu nào</p>
+                    <Link href="/admin/livestream/references" className="text-xs text-violet-600 hover:underline">
+                      + Thêm tư liệu tham khảo
+                    </Link>
+                  </div>
+                ) : (
+                  <>
+                    <div className="pt-3 space-y-1.5">
+                      {references
+                        .filter((r) => r.status === "analyzed")
+                        .map((ref) => {
+                          const checked = selectedRefIds.has(ref.id);
+                          return (
+                            <label
+                              key={ref.id}
+                              className={`flex items-start gap-2.5 cursor-pointer rounded-md px-2.5 py-2 border transition-colors ${
+                                checked
+                                  ? "bg-violet-50 border-violet-200"
+                                  : "border-zinc-100 hover:bg-zinc-50"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  setSelectedRefIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (checked) next.delete(ref.id);
+                                    else next.add(ref.id);
+                                    return next;
+                                  });
+                                }}
+                                className="mt-0.5 accent-violet-600"
+                              />
+                              <div className="min-w-0">
+                                <p className="text-xs font-medium text-zinc-800 truncate">{ref.title}</p>
+                                {(ref.source_platform || ref.category) && (
+                                  <p className="text-xs text-zinc-400 mt-0.5">
+                                    {[ref.source_platform, ref.category].filter(Boolean).join(" · ")}
+                                  </p>
+                                )}
+                              </div>
+                            </label>
+                          );
+                        })}
+                      {references.filter((r) => r.status !== "analyzed").length > 0 && (
+                        <p className="text-xs text-zinc-400 pt-1">
+                          {references.filter((r) => r.status !== "analyzed").length} tư liệu chưa phân tích xong
+                        </p>
+                      )}
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-600">
+                      <input
+                        type="checkbox"
+                        checked={includeApprovedScripts}
+                        onChange={(e) => setIncludeApprovedScripts(e.target.checked)}
+                        className="accent-violet-600"
+                      />
+                      Kèm kịch bản đã duyệt trước (cùng ngành hàng)
+                    </label>
+                    {selectedRefIds.size > 0 && (
+                      <p className="text-xs text-violet-600 bg-violet-50 px-2.5 py-1.5 rounded">
+                        ✦ AI sẽ dùng Sonnet + học từ {selectedRefIds.size} tư liệu để tạo kịch bản độc đáo hơn
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Voice panel */}

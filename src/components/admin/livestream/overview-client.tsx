@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Users, FileText, Radio, TrendingUp, Plus, ChevronRight } from "lucide-react";
+import { Users, FileText, Radio, TrendingUp, Plus, ChevronRight, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { LivestreamOverview, SessionListItem } from "@/lib/actions/livestream";
@@ -157,12 +157,13 @@ export default function LivestreamOverviewClient({
       </div>
 
       {/* Quick nav */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {[
           { href: "/admin/livestream/hosts", label: "Quản lý AI Hosts", desc: "Tạo và chỉnh sửa host" },
           { href: "/admin/livestream/products", label: "Kiến thức sản phẩm", desc: "Thêm thông tin sản phẩm" },
           { href: "/admin/livestream/scripts", label: "Kịch bản live", desc: "Generate script bằng AI" },
           { href: "/admin/livestream/sessions", label: "Lịch live", desc: "Quản lý phiên streaming" },
+          { href: "/admin/livestream/references", label: "Tư liệu tham khảo", desc: "Upload live để AI học" },
         ].map((item) => (
           <Link
             key={item.href}
