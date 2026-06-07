@@ -134,10 +134,11 @@ export async function updateScriptVoice(
   voice_id: string
 ): Promise<ActionResult> {
   const supabase = await createClient();
-  const { error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase
     .from("live_scripts")
-    .update({ voice_id })
-    .eq("script_id", script_id);
+    .update({ voice_id } as any)
+    .eq("script_id", script_id) as any);
 
   if (error) return { success: false, error: error.message };
   revalidatePath(`/admin/livestream/scripts/${script_id}`);
