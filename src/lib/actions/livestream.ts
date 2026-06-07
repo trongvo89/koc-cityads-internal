@@ -79,6 +79,11 @@ export type SessionDetail = SessionListItem & {
   total_orders: number | null;
   report_notes: string | null;
   script_title: string | null;
+  stream_status: "idle" | "preparing" | "streaming" | "stopped" | "error" | null;
+  stream_error: string | null;
+  stream_started_at: string | null;
+  stream_stopped_at: string | null;
+  loop_video: boolean;
 };
 
 export type LivestreamOverview = {
@@ -473,6 +478,11 @@ export async function getSessionDetail(
       peak_viewers: s.peak_viewers as number | null,
       total_orders: s.total_orders as number | null,
       report_notes: s.report_notes as string | null,
+      stream_status: (s.stream_status as SessionDetail["stream_status"]) ?? null,
+      stream_error: s.stream_error as string | null,
+      stream_started_at: s.stream_started_at as string | null,
+      stream_stopped_at: s.stream_stopped_at as string | null,
+      loop_video: (s.loop_video as boolean) ?? true,
       created_at: s.created_at as string,
     },
   };
