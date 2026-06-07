@@ -306,15 +306,16 @@ export async function getScripts(): Promise<ActionResult<ScriptListItem[]>> {
 
 export async function getScriptDetail(script_id: string): Promise<ActionResult<ScriptDetail>> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase
     .from("live_scripts")
     .select(
       "script_id, title, product_id, host_id, duration_minutes, status, ai_generated, brief, voice_id, script_sections, created_at, product_knowledge(name), ai_hosts(name)"
     )
     .eq("script_id", script_id)
-    .single();
+    .single() as any);
 
-  if (error) return { success: false, error: error.message };
+  if (error) return { success: false, error: (error as { message: string }).message };
 
   const s = data as Record<string, unknown>;
   return {
