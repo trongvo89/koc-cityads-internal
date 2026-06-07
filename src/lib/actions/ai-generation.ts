@@ -20,6 +20,8 @@ export type ScriptSection = {
   content: string;
   duration_seconds: number;
   audio_url?: string | null;
+  video_url?: string | null;
+  heygen_video_id?: string | null;
 };
 
 export async function generateHostPersona(

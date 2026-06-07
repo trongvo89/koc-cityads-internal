@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Sparkles, Save, CheckCircle, Clock, Loader2, Grip,
-  Volume2, VolumeX, Play, Pause, Mic, MicOff,
+  Play, Pause, Mic, MicOff, Video, VideoOff, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,9 +16,11 @@ import {
 import { generateLiveScript } from "@/lib/actions/ai-generation";
 import { updateScript, saveScriptSections } from "@/lib/actions/livestream";
 import { generateSectionAudio, generateAllSectionsAudio, updateScriptVoice } from "@/lib/actions/audio";
+import { generateSectionVideo, generateAllSectionVideos, checkSectionVideoStatus } from "@/lib/actions/video";
 import type { ScriptDetail, AiHostListItem, ProductListItem } from "@/lib/actions/livestream";
 import type { ScriptSection } from "@/lib/actions/ai-generation";
 import type { ElevenLabsVoice } from "@/lib/actions/audio";
+import type { HeyGenAvatar } from "@/lib/actions/video";
 
 const SECTION_LABEL: Record<string, string> = {
   intro: "Mở đầu", hook: "Hook", product_intro: "Giới thiệu SP",
@@ -38,6 +40,7 @@ type Props = {
   hosts: AiHostListItem[];
   products: ProductListItem[];
   voices: ElevenLabsVoice[];
+  avatars: HeyGenAvatar[];
 };
 
 function formatDuration(seconds: number) {
@@ -50,33 +53,24 @@ function formatDuration(seconds: number) {
 function AudioPlayer({ url }: { url: string }) {
   const ref = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
-
   function toggle() {
     if (!ref.current) return;
     if (playing) { ref.current.pause(); setPlaying(false); }
     else { ref.current.play(); setPlaying(true); }
   }
-
   return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={toggle}
-        className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors"
-      >
+    <span className="inline-flex items-center">
+      <button onClick={toggle}
+        className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors">
         {playing ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-        {playing ? "Dừng" : "Nghe thử"}
+        {playing ? "Dừng" : "Nghe"}
       </button>
-      <audio
-        ref={ref}
-        src={url}
-        onEnded={() => setPlaying(false)}
-        className="hidden"
-      />
-    </div>
+      <audio ref={ref} src={url} onEnded={() => setPlaying(false)} className="hidden" />
+    </span>
   );
 }
 
-export default function ScriptDetailClient({ script: initial, hosts, products, voices }: Props) {
+export default function ScriptDetailClient({ script: initial, hosts, products, voices, avatars }: Props) {
   const [sections, setSections] = useState<ScriptSection[]>(initial.script_sections);
   const [status, setStatus] = useState(initial.status);
   const [productId, setProductId] = useState(initial.product_id ?? "");
@@ -84,39 +78,67 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
   const [brief, setBrief] = useState(initial.brief ?? "");
   const [duration, setDuration] = useState<string>(String(initial.duration_minutes ?? 30));
   const [voiceId, setVoiceId] = useState(initial.voice_id ?? "");
+  const [avatarId, setAvatarId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [generatingAudio, setGeneratingAudio] = useState<Set<number>>(new Set());
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [generatingVideo, setGeneratingVideo] = useState<Set<number>>(new Set());
+  const [generatingAllVideo, setGeneratingAllVideo] = useState(false);
+  const [pollingVideo, setPollingVideo] = useState<Set<number>>(new Set());
   const [isGenerating, startGenerate] = useTransition();
   const [isSaving, startSave] = useTransition();
   const [isApproving, startApprove] = useTransition();
 
   const totalSeconds = sections.reduce((s, sec) => s + (sec.duration_seconds ?? 0), 0);
   const audioCount = sections.filter((s) => s.audio_url).length;
+  const videoCount = sections.filter((s) => s.video_url).length;
+  const pendingVideoCount = sections.filter((s) => s.heygen_video_id && !s.video_url).length;
 
   function updateSectionContent(index: number, content: string) {
-    setSections((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], content };
-      return next;
-    });
+    setSections((prev) => { const next = [...prev]; next[index] = { ...next[index], content }; return next; });
+  }
+  function setSectionAudio(index: number, audio_url: string) {
+    setSections((prev) => { const next = [...prev]; next[index] = { ...next[index], audio_url }; return next; });
+  }
+  function setSectionVideo(index: number, video_url: string) {
+    setSections((prev) => { const next = [...prev]; next[index] = { ...next[index], video_url }; return next; });
   }
 
-  function setSectionAudio(index: number, audio_url: string) {
-    setSections((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], audio_url };
-      return next;
-    });
-  }
+  // Poll for pending videos
+  const pollVideoStatus = useCallback(async (index: number) => {
+    setPollingVideo((prev) => new Set(prev).add(index));
+    const result = await checkSectionVideoStatus(initial.script_id, index);
+    setPollingVideo((prev) => { const s = new Set(prev); s.delete(index); return s; });
+    if (result.success) {
+      if (result.data.status === "completed" && result.data.video_url) {
+        setSectionVideo(index, result.data.video_url);
+      } else if (result.data.status === "failed") {
+        setError(`Video section ${index + 1} thất bại: ${result.data.error ?? "unknown"}`);
+      }
+      return result.data.status;
+    }
+    return null;
+  }, [initial.script_id]);
+
+  // Auto-poll pending videos every 15s
+  useEffect(() => {
+    const pending = sections
+      .map((s, i) => (s.heygen_video_id && !s.video_url ? i : -1))
+      .filter((i) => i >= 0);
+    if (pending.length === 0) return;
+
+    const interval = setInterval(() => {
+      pending.forEach((i) => pollVideoStatus(i));
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [sections, pollVideoStatus]);
 
   function handleGenerate() {
     if (!productId) { setError("Chọn sản phẩm trước khi generate kịch bản"); return; }
     setError(null);
     const selectedProduct = products.find((p) => p.product_id === productId);
     const selectedHost = hosts.find((h) => h.host_id === hostId);
-
     startGenerate(async () => {
       const result = await generateLiveScript({
         product: {
@@ -142,16 +164,13 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
   }
 
   function handleSave() {
-    setError(null);
-    setSaveSuccess(false);
+    setError(null); setSaveSuccess(false);
     startSave(async () => {
       const [r1, r2] = await Promise.all([
         saveScriptSections(initial.script_id, sections),
         updateScript(initial.script_id, {
-          product_id: productId || null,
-          host_id: hostId || null,
-          brief: brief || undefined,
-          duration_minutes: parseInt(duration) || undefined,
+          product_id: productId || null, host_id: hostId || null,
+          brief: brief || undefined, duration_minutes: parseInt(duration) || undefined,
         }),
       ]);
       if (!r1.success) { setError(r1.error); return; }
@@ -164,40 +183,35 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
   function handleApprove() {
     startApprove(async () => {
       const result = await updateScript(initial.script_id, { status: "approved" });
-      if (result.success) setStatus("approved");
-      else setError(result.error);
+      if (result.success) setStatus("approved"); else setError(result.error);
     });
   }
 
   function handleArchive() {
     startApprove(async () => {
       const result = await updateScript(initial.script_id, { status: "archived" });
-      if (result.success) setStatus("archived");
-      else setError(result.error);
+      if (result.success) setStatus("archived"); else setError(result.error);
     });
   }
 
-  async function handleVoiceChange(newVoiceId: string) {
-    setVoiceId(newVoiceId);
-    await updateScriptVoice(initial.script_id, newVoiceId);
+  async function handleVoiceChange(v: string) {
+    setVoiceId(v);
+    await updateScriptVoice(initial.script_id, v);
   }
 
   async function handleGenerateAudio(index: number) {
     if (!voiceId) { setError("Chọn giọng nói trước"); return; }
     setError(null);
     setGeneratingAudio((prev) => new Set(prev).add(index));
-    const result = await generateSectionAudio(
-      initial.script_id, index, sections[index].content, voiceId
-    );
+    const r = await generateSectionAudio(initial.script_id, index, sections[index].content, voiceId);
     setGeneratingAudio((prev) => { const s = new Set(prev); s.delete(index); return s; });
-    if (result.success) setSectionAudio(index, result.data.audio_url);
-    else setError(result.error);
+    if (r.success) setSectionAudio(index, r.data.audio_url);
+    else setError(r.error);
   }
 
   async function handleGenerateAllAudio() {
     if (!voiceId) { setError("Chọn giọng nói trước"); return; }
-    setError(null);
-    setGeneratingAll(true);
+    setError(null); setGeneratingAll(true);
     const result = await generateAllSectionsAudio(initial.script_id, sections, voiceId);
     setGeneratingAll(false);
     if (result.success) {
@@ -205,10 +219,34 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
         if (r.success && r.audio_url) setSectionAudio(r.index, r.audio_url);
       }
       const failed = result.data.results.filter((r) => !r.success);
-      if (failed.length > 0) setError(`${failed.length} section bị lỗi khi tạo audio`);
-    } else {
-      setError(result.error);
-    }
+      if (failed.length > 0) setError(`${failed.length} section bị lỗi audio`);
+    } else setError(result.error);
+  }
+
+  async function handleGenerateVideo(index: number) {
+    if (!avatarId) { setError("Chọn avatar HeyGen trước"); return; }
+    setError(null);
+    setGeneratingVideo((prev) => new Set(prev).add(index));
+    const r = await generateSectionVideo(initial.script_id, index, avatarId);
+    setGeneratingVideo((prev) => { const s = new Set(prev); s.delete(index); return s; });
+    if (r.success) {
+      // Mark section as having a pending video, auto-poll will pick up
+      setSections((prev) => {
+        const next = [...prev];
+        next[index] = { ...next[index], heygen_video_id: r.data.video_id };
+        return next;
+      });
+    } else setError(r.error);
+  }
+
+  async function handleGenerateAllVideo() {
+    if (!avatarId) { setError("Chọn avatar HeyGen trước"); return; }
+    setError(null); setGeneratingAllVideo(true);
+    const result = await generateAllSectionVideos(initial.script_id, avatarId);
+    setGeneratingAllVideo(false);
+    if (result.success) {
+      if (result.data.errors.length > 0) setError(result.data.errors.join("\n"));
+    } else setError(result.error);
   }
 
   const STATUS_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "success" | "warning" }> = {
@@ -236,7 +274,7 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
           {status === "draft" && (
             <Button variant="outline" size="sm" onClick={handleApprove}
               disabled={isApproving || sections.length === 0}>
-              <CheckCircle className="h-4 w-4 mr-1.5" />Duyệt kịch bản
+              <CheckCircle className="h-4 w-4 mr-1.5" />Duyệt
             </Button>
           )}
           {status === "approved" && (
@@ -255,7 +293,7 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-md px-4 py-2">
-          <p className="text-sm text-red-700">{error}</p>
+          <p className="text-sm text-red-700 whitespace-pre-wrap">{error}</p>
         </div>
       )}
 
@@ -264,8 +302,7 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
         <div className="lg:col-span-2 space-y-4">
           {/* Script info */}
           <div className="bg-white border border-zinc-200 rounded-lg p-4 space-y-4">
-            <h2 className="text-sm font-semibold text-zinc-700">Thông tin kịch bản</h2>
-
+            <h2 className="text-sm font-semibold text-zinc-700">1. Kịch bản</h2>
             <div className="space-y-2">
               <Label>Sản phẩm *</Label>
               <Select value={productId} onValueChange={setProductId}>
@@ -277,7 +314,6 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label>AI Host</Label>
               <Select value={hostId || "__none__"} onValueChange={(v) => setHostId(v === "__none__" ? "" : v)}>
@@ -290,7 +326,6 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label>Thời lượng (phút)</Label>
               <Select value={duration} onValueChange={setDuration}>
@@ -302,88 +337,104 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
                 </SelectContent>
               </Select>
             </div>
-
             <div className="space-y-2">
               <Label>Brief thêm (tuỳ chọn)</Label>
-              <Textarea
-                value={brief}
-                onChange={(e) => setBrief(e.target.value)}
-                placeholder="Yêu cầu đặc biệt, tone của buổi live, sản phẩm đang sale..."
-                rows={3}
-              />
+              <Textarea value={brief} onChange={(e) => setBrief(e.target.value)}
+                placeholder="Yêu cầu đặc biệt, tone, sản phẩm đang sale..." rows={3} />
             </div>
-
             <Button className="w-full" onClick={handleGenerate} disabled={isGenerating || !productId}>
               {isGenerating ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> :
                 <Sparkles className="h-4 w-4 mr-1.5" />}
-              {isGenerating ? "Đang tạo kịch bản..." : "Tạo kịch bản AI"}
+              {isGenerating ? "Đang tạo..." : "Tạo kịch bản AI"}
             </Button>
           </div>
 
-          {/* Voice / Audio panel */}
-          <div className="bg-white border border-zinc-200 rounded-lg p-4 space-y-4">
+          {/* Voice panel */}
+          <div className="bg-white border border-zinc-200 rounded-lg p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-zinc-700">Giọng nói AI</h2>
+              <h2 className="text-sm font-semibold text-zinc-700">2. Giọng nói</h2>
               {audioCount > 0 && (
-                <span className="text-xs text-emerald-600 font-medium">
-                  {audioCount}/{sections.length} section có audio
-                </span>
+                <span className="text-xs text-emerald-600 font-medium">{audioCount}/{sections.length} audio</span>
               )}
             </div>
-
             <div className="space-y-2">
-              <Label>Chọn giọng ElevenLabs</Label>
+              <Label>Giọng ElevenLabs</Label>
               {voices.length === 0 ? (
                 <p className="text-xs text-zinc-400">Chưa cấu hình ELEVENLABS_API_KEY</p>
               ) : (
                 <Select value={voiceId || "__none__"} onValueChange={(v) => handleVoiceChange(v === "__none__" ? "" : v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn giọng nói..." />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Chọn giọng..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Chưa chọn</SelectItem>
                     {voices.map((v) => (
                       <SelectItem key={v.voice_id} value={v.voice_id}>
-                        {v.name}
-                        {v.labels?.accent ? ` · ${v.labels.accent}` : ""}
-                        {v.category === "cloned" ? " (cloned)" : ""}
+                        {v.name}{v.labels?.accent ? ` · ${v.labels.accent}` : ""}{v.category === "cloned" ? " (clone)" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             </div>
-
             {voiceId && sections.length > 0 && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={handleGenerateAllAudio}
-                disabled={generatingAll || !voiceId}
-              >
-                {generatingAll ? (
-                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-                ) : (
-                  <Mic className="h-4 w-4 mr-1.5" />
-                )}
-                {generatingAll ? "Đang tạo audio..." : "Tạo audio toàn bộ kịch bản"}
+              <Button variant="outline" className="w-full" onClick={handleGenerateAllAudio}
+                disabled={generatingAll || !voiceId}>
+                {generatingAll ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> :
+                  <Mic className="h-4 w-4 mr-1.5" />}
+                {generatingAll ? "Đang tạo audio..." : "Tạo audio toàn bộ"}
               </Button>
-            )}
-
-            {generatingAll && (
-              <p className="text-xs text-zinc-500 text-center">
-                Đang xử lý từng section, vui lòng đợi...
-              </p>
             )}
           </div>
 
+          {/* Video panel */}
+          <div className="bg-white border border-zinc-200 rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-zinc-700">3. Video Avatar</h2>
+              <div className="flex items-center gap-2">
+                {videoCount > 0 && (
+                  <span className="text-xs text-blue-600 font-medium">{videoCount}/{sections.length} video</span>
+                )}
+                {pendingVideoCount > 0 && (
+                  <span className="text-xs text-amber-600 font-medium animate-pulse">
+                    {pendingVideoCount} đang render
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Avatar HeyGen</Label>
+              {avatars.length === 0 ? (
+                <p className="text-xs text-zinc-400">Chưa cấu hình HEYGEN_API_KEY</p>
+              ) : (
+                <Select value={avatarId || "__none__"} onValueChange={(v) => setAvatarId(v === "__none__" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder="Chọn avatar..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Chưa chọn</SelectItem>
+                    {avatars.map((a) => (
+                      <SelectItem key={a.avatar_id} value={a.avatar_id}>
+                        {a.avatar_name}{a.gender ? ` · ${a.gender}` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            {avatarId && sections.length > 0 && (
+              <Button variant="outline" className="w-full" onClick={handleGenerateAllVideo}
+                disabled={generatingAllVideo || !avatarId}>
+                {generatingAllVideo ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> :
+                  <Video className="h-4 w-4 mr-1.5" />}
+                {generatingAllVideo ? "Đang submit..." : "Tạo video toàn bộ"}
+              </Button>
+            )}
+          </div>
+
+          {/* Stats */}
           {sections.length > 0 && (
             <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-3">
               <div className="flex items-center gap-2 text-sm text-zinc-600">
                 <Clock className="h-4 w-4" />
                 <span>
-                  Tổng: <strong>{formatDuration(totalSeconds)}</strong>
-                  {" "}· {sections.length} phần
+                  Tổng: <strong>{formatDuration(totalSeconds)}</strong> · {sections.length} phần
                 </span>
               </div>
             </div>
@@ -400,6 +451,7 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
           ) : (
             sections.map((sec, i) => (
               <div key={i} className="bg-white border border-zinc-200 rounded-lg p-4 space-y-2">
+                {/* Section header */}
                 <div className="flex items-center gap-2">
                   <Grip className="h-4 w-4 text-zinc-300" />
                   <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${SECTION_COLOR[sec.section_type] ?? "bg-zinc-100 text-zinc-700"}`}>
@@ -408,43 +460,64 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
                   <span className="text-xs text-zinc-400 ml-auto">{formatDuration(sec.duration_seconds)}</span>
                 </div>
 
-                <Textarea
-                  value={sec.content}
-                  onChange={(e) => updateSectionContent(i, e.target.value)}
-                  rows={4}
-                  className="text-sm resize-none"
-                />
+                {/* Content */}
+                <Textarea value={sec.content} onChange={(e) => updateSectionContent(i, e.target.value)}
+                  rows={4} className="text-sm resize-none" />
 
-                {/* Audio row */}
-                <div className="flex items-center gap-2 pt-1">
+                {/* Media row */}
+                <div className="flex items-center gap-3 pt-1 flex-wrap">
+                  {/* Audio */}
                   {sec.audio_url ? (
-                    <>
+                    <div className="flex items-center gap-1.5">
                       <AudioPlayer url={sec.audio_url} />
-                      <button
-                        onClick={() => handleGenerateAudio(i)}
+                      <button onClick={() => handleGenerateAudio(i)}
                         disabled={generatingAudio.has(i) || !voiceId || generatingAll}
-                        className="text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-40 transition-colors"
-                      >
-                        {generatingAudio.has(i) ? (
-                          <Loader2 className="h-3 w-3 animate-spin inline mr-1" />
-                        ) : (
-                          <Volume2 className="h-3 w-3 inline mr-1" />
-                        )}
-                        {generatingAudio.has(i) ? "Đang tạo..." : "Tạo lại"}
+                        className="text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-30 transition-colors">
+                        {generatingAudio.has(i) ? <Loader2 className="h-3 w-3 animate-spin inline" /> : null}
+                        {generatingAudio.has(i) ? " Đang tạo..." : "Tạo lại audio"}
                       </button>
-                    </>
+                    </div>
                   ) : (
-                    <button
-                      onClick={() => handleGenerateAudio(i)}
+                    <button onClick={() => handleGenerateAudio(i)}
                       disabled={generatingAudio.has(i) || !voiceId || generatingAll}
-                      className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-700 disabled:opacity-40 transition-colors"
-                    >
-                      {generatingAudio.has(i) ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        <MicOff className="h-3 w-3" />
-                      )}
-                      {generatingAudio.has(i) ? "Đang tạo audio..." : "Chưa có audio · Tạo ngay"}
+                      className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-700 disabled:opacity-30 transition-colors">
+                      {generatingAudio.has(i) ? <Loader2 className="h-3 w-3 animate-spin" /> : <MicOff className="h-3 w-3" />}
+                      {generatingAudio.has(i) ? "Đang tạo..." : "Tạo audio"}
+                    </button>
+                  )}
+
+                  <span className="text-zinc-200">|</span>
+
+                  {/* Video */}
+                  {sec.video_url ? (
+                    <div className="flex items-center gap-1.5">
+                      <a href={sec.video_url} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 transition-colors">
+                        <Video className="h-3 w-3" />Xem video
+                      </a>
+                      <button onClick={() => handleGenerateVideo(i)}
+                        disabled={generatingVideo.has(i) || !avatarId || generatingAllVideo}
+                        className="text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-30 transition-colors">
+                        Tạo lại
+                      </button>
+                    </div>
+                  ) : sec.heygen_video_id ? (
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-amber-600 animate-pulse flex items-center gap-1">
+                        <Loader2 className="h-3 w-3 animate-spin" />Đang render...
+                      </span>
+                      <button onClick={() => pollVideoStatus(i)}
+                        disabled={pollingVideo.has(i)}
+                        className="text-xs text-zinc-400 hover:text-zinc-600 disabled:opacity-30">
+                        <RefreshCw className={`h-3 w-3 inline ${pollingVideo.has(i) ? "animate-spin" : ""}`} /> Check
+                      </button>
+                    </div>
+                  ) : (
+                    <button onClick={() => handleGenerateVideo(i)}
+                      disabled={generatingVideo.has(i) || !avatarId || generatingAllVideo}
+                      className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-700 disabled:opacity-30 transition-colors">
+                      {generatingVideo.has(i) ? <Loader2 className="h-3 w-3 animate-spin" /> : <VideoOff className="h-3 w-3" />}
+                      {generatingVideo.has(i) ? "Đang submit..." : "Tạo video"}
                     </button>
                   )}
                 </div>
