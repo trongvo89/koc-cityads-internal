@@ -1,21 +1,26 @@
 "use client";
 
 import { useState, useTransition, useRef, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Sparkles, Save, CheckCircle, Clock, Loader2, Grip,
-  Play, Pause, Mic, MicOff, Video, VideoOff, RefreshCw,
+  Play, Pause, Mic, MicOff, Video, VideoOff, RefreshCw, Plus, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { generateLiveScript } from "@/lib/actions/ai-generation";
 import { updateScript, saveScriptSections } from "@/lib/actions/livestream";
-import { generateSectionAudio, generateAllSectionsAudio, updateScriptVoice } from "@/lib/actions/audio";
+import { generateSectionAudio, generateAllSectionsAudio, updateScriptVoice, cloneVoice, deleteClonedVoice } from "@/lib/actions/audio";
 import { generateSectionVideo, generateAllSectionVideos, checkSectionVideoStatus } from "@/lib/actions/video";
 import type { ScriptDetail, AiHostListItem, ProductListItem } from "@/lib/actions/livestream";
 import type { ScriptSection } from "@/lib/actions/ai-generation";
@@ -70,7 +75,8 @@ function AudioPlayer({ url }: { url: string }) {
   );
 }
 
-export default function ScriptDetailClient({ script: initial, hosts, products, voices, avatars }: Props) {
+export default function ScriptDetailClient({ script: initial, hosts, products, voices: initialVoices, avatars }: Props) {
+  const router = useRouter();
   const [sections, setSections] = useState<ScriptSection[]>(initial.script_sections);
   const [status, setStatus] = useState(initial.status);
   const [productId, setProductId] = useState(initial.product_id ?? "");
@@ -89,6 +95,14 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
   const [isGenerating, startGenerate] = useTransition();
   const [isSaving, startSave] = useTransition();
   const [isApproving, startApprove] = useTransition();
+
+  // Voice cloning state
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const [cloneName, setCloneName] = useState("");
+  const [cloneFiles, setCloneFiles] = useState<FileList | null>(null);
+  const [cloningVoice, setCloningVoice] = useState(false);
+  const [cloneError, setCloneError] = useState<string | null>(null);
+  const [voices, setVoices] = useState<ElevenLabsVoice[]>(initialVoices);
 
   const totalSeconds = sections.reduce((s, sec) => s + (sec.duration_seconds ?? 0), 0);
   const audioCount = sections.filter((s) => s.audio_url).length;
@@ -197,6 +211,54 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
   async function handleVoiceChange(v: string) {
     setVoiceId(v);
     await updateScriptVoice(initial.script_id, v);
+  }
+
+  async function handleCloneVoice() {
+    if (!cloneName.trim()) { setCloneError("Nhập tên giọng"); return; }
+    if (!cloneFiles || cloneFiles.length === 0) { setCloneError("Chọn ít nhất 1 file âm thanh"); return; }
+    setCloneError(null);
+    setCloningVoice(true);
+
+    const formData = new FormData();
+    formData.append("name", cloneName.trim());
+    for (let i = 0; i < cloneFiles.length; i++) {
+      formData.append("files", cloneFiles[i]);
+    }
+
+    const result = await cloneVoice(formData);
+    setCloningVoice(false);
+
+    if (result.success) {
+      // Add cloned voice to local list and select it
+      const newVoice: ElevenLabsVoice = {
+        voice_id: result.data.voice_id,
+        name: result.data.name,
+        category: "cloned",
+        labels: {},
+        preview_url: null,
+      };
+      setVoices((prev) => [newVoice, ...prev]);
+      setVoiceId(result.data.voice_id);
+      await updateScriptVoice(initial.script_id, result.data.voice_id);
+      setCloneOpen(false);
+      setCloneName("");
+      setCloneFiles(null);
+      router.refresh();
+    } else {
+      setCloneError(result.error);
+    }
+  }
+
+  async function handleDeleteVoice(voice_id: string, voiceName: string) {
+    if (!confirm(`Xoá giọng clone "${voiceName}"? Hành động này không thể hoàn tác.`)) return;
+    const result = await deleteClonedVoice(voice_id);
+    if (result.success) {
+      setVoices((prev) => prev.filter((v) => v.voice_id !== voice_id));
+      if (voiceId === voice_id) setVoiceId("");
+      router.refresh();
+    } else {
+      setError(result.error);
+    }
   }
 
   async function handleGenerateAudio(index: number) {
@@ -358,7 +420,15 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
               )}
             </div>
             <div className="space-y-2">
-              <Label>Giọng ElevenLabs</Label>
+              <div className="flex items-center justify-between">
+                <Label>Giọng ElevenLabs</Label>
+                {voices.length > 0 && (
+                  <button onClick={() => { setCloneOpen(true); setCloneError(null); }}
+                    className="flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 font-medium">
+                    <Plus className="h-3 w-3" />Clone giọng mới
+                  </button>
+                )}
+              </div>
               {voices.length === 0 ? (
                 <p className="text-xs text-zinc-400">Chưa cấu hình ELEVENLABS_API_KEY</p>
               ) : (
@@ -368,13 +438,30 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
                     <SelectItem value="__none__">Chưa chọn</SelectItem>
                     {voices.map((v) => (
                       <SelectItem key={v.voice_id} value={v.voice_id}>
-                        {v.name}{v.labels?.accent ? ` · ${v.labels.accent}` : ""}{v.category === "cloned" ? " (clone)" : ""}
+                        {v.name}{v.labels?.accent ? ` · ${v.labels.accent}` : ""}{v.category === "cloned" ? " ✦clone" : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               )}
             </div>
+
+            {/* Cloned voices management */}
+            {voices.some((v) => v.category === "cloned") && (
+              <div className="space-y-1">
+                <p className="text-xs text-zinc-500 font-medium">Giọng đã clone</p>
+                {voices.filter((v) => v.category === "cloned").map((v) => (
+                  <div key={v.voice_id} className="flex items-center justify-between text-xs px-2 py-1 bg-violet-50 rounded border border-violet-100">
+                    <span className="text-violet-800 font-medium">{v.name}</span>
+                    <button onClick={() => handleDeleteVoice(v.voice_id, v.name)}
+                      className="text-zinc-400 hover:text-red-500 transition-colors">
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {voiceId && sections.length > 0 && (
               <Button variant="outline" className="w-full" onClick={handleGenerateAllAudio}
                 disabled={generatingAll || !voiceId}>
@@ -526,6 +613,47 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
           )}
         </div>
       </div>
+
+      {/* Voice Clone Dialog */}
+      <Dialog open={cloneOpen} onOpenChange={setCloneOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Clone giọng nói mới</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-zinc-500">
+              Upload 1–5 file âm thanh tiếng Việt (30 giây – 5 phút mỗi file, MP3/WAV/M4A).
+              ElevenLabs sẽ học giọng và tạo bản clone dùng được trong kịch bản.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="clone-name">Tên giọng *</Label>
+              <Input id="clone-name" value={cloneName} onChange={(e) => setCloneName(e.target.value)}
+                placeholder="VD: Lan Anh – Nữ miền Nam" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="clone-files">File âm thanh mẫu *</Label>
+              <input id="clone-files" type="file" accept="audio/*" multiple
+                onChange={(e) => setCloneFiles(e.target.files)}
+                className="block w-full text-sm text-zinc-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border file:border-zinc-300 file:text-xs file:font-medium file:bg-zinc-50 file:text-zinc-700 hover:file:bg-zinc-100 cursor-pointer" />
+              {cloneFiles && cloneFiles.length > 0 && (
+                <p className="text-xs text-zinc-500">{cloneFiles.length} file đã chọn</p>
+              )}
+            </div>
+            {cloneError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{cloneError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloneOpen(false)} disabled={cloningVoice}>
+              Huỷ
+            </Button>
+            <Button onClick={handleCloneVoice} disabled={cloningVoice}>
+              {cloningVoice ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Mic className="h-4 w-4 mr-1.5" />}
+              {cloningVoice ? "Đang clone..." : "Clone giọng"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

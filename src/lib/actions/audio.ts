@@ -144,3 +144,57 @@ export async function updateScriptVoice(
   revalidatePath(`/admin/livestream/scripts/${script_id}`);
   return { success: true, data: undefined };
 }
+
+export async function cloneVoice(
+  formData: FormData
+): Promise<ActionResult<{ voice_id: string; name: string }>> {
+  if (!process.env.ELEVENLABS_API_KEY) {
+    return { success: false, error: "ELEVENLABS_API_KEY chưa được cấu hình" };
+  }
+
+  const name = formData.get("name") as string;
+  if (!name?.trim()) return { success: false, error: "Tên giọng không được để trống" };
+
+  const files = formData.getAll("files") as File[];
+  if (files.length === 0 || (files.length === 1 && files[0].size === 0)) {
+    return { success: false, error: "Cần ít nhất 1 file âm thanh mẫu" };
+  }
+
+  const body = new FormData();
+  body.append("name", name.trim());
+  for (const file of files) {
+    body.append("files", file);
+  }
+
+  const res = await fetch("https://api.elevenlabs.io/v1/voices/add", {
+    method: "POST",
+    headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY },
+    body,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    return { success: false, error: `ElevenLabs lỗi ${res.status}: ${errText.slice(0, 300)}` };
+  }
+
+  const data = await res.json() as { voice_id: string };
+  return { success: true, data: { voice_id: data.voice_id, name: name.trim() } };
+}
+
+export async function deleteClonedVoice(voice_id: string): Promise<ActionResult> {
+  if (!process.env.ELEVENLABS_API_KEY) {
+    return { success: false, error: "ELEVENLABS_API_KEY chưa được cấu hình" };
+  }
+
+  const res = await fetch(`https://api.elevenlabs.io/v1/voices/${voice_id}`, {
+    method: "DELETE",
+    headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY },
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    return { success: false, error: `ElevenLabs lỗi ${res.status}: ${errText.slice(0, 200)}` };
+  }
+
+  return { success: true, data: undefined };
+}
