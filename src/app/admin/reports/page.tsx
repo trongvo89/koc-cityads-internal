@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getMonthlyStats } from "@/lib/actions/stats";
+import { getMonthlyStats, getMonthlyRevenue } from "@/lib/actions/stats";
 import { Badge } from "@/components/ui/badge";
 import MonthPicker from "@/components/admin/month-picker";
 import { Suspense } from "react";
@@ -70,7 +70,10 @@ export default async function ReportsPage({
   const month =
     params.month && isValidMonth(params.month) ? params.month : currentMonth();
 
-  const result = await getMonthlyStats(month);
+  const [result, revenueResult] = await Promise.all([
+    getMonthlyStats(month),
+    getMonthlyRevenue(month),
+  ]);
 
   if (!result.success) {
     return (
@@ -82,6 +85,7 @@ export default async function ReportsPage({
   }
 
   const s = result.data;
+  const rev = revenueResult.success ? revenueResult.data : null;
 
   return (
     <div className="space-y-6">
@@ -147,6 +151,113 @@ export default async function ReportsPage({
           </div>
         </div>
       </div>
+
+      {/* Thực nhận trong tháng */}
+      {rev && (
+        <>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-4">
+              <p className="text-xs text-emerald-600 uppercase tracking-wide font-medium">
+                Cọc nhận được
+              </p>
+              <p className="text-2xl font-bold text-emerald-700 mt-1">
+                {formatVND(rev.total_deposit_received)}
+              </p>
+            </div>
+            <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-4">
+              <p className="text-xs text-emerald-600 uppercase tracking-wide font-medium">
+                Quyết toán nhận
+              </p>
+              <p className="text-2xl font-bold text-emerald-700 mt-1">
+                {formatVND(rev.total_final_received)}
+              </p>
+            </div>
+            <div className="bg-green-50 rounded-lg border border-green-300 p-4">
+              <p className="text-xs text-green-700 uppercase tracking-wide font-medium">
+                Tổng thực nhận
+              </p>
+              <p className="text-2xl font-bold text-green-700 mt-1">
+                {formatVND(rev.total_received)}
+              </p>
+            </div>
+          </div>
+
+          {rev.payments.length > 0 && (
+            <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
+              <div className="px-4 py-3 border-b border-zinc-200 bg-emerald-50">
+                <h2 className="text-sm font-semibold text-emerald-800">
+                  Chi tiết thực nhận
+                </h2>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="border-b border-zinc-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                      Campaign
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                      Client
+                    </th>
+                    <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                      Loại
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                      Giá trị HĐ
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                      Thực nhận
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                      Ngày nhận
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rev.payments.map((p, i) => (
+                    <tr
+                      key={`${p.campaign_id}-${p.payment_type}-${i}`}
+                      className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors"
+                    >
+                      <td className="px-4 py-3 font-medium text-zinc-900">
+                        {p.campaign_name}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-600">{p.client_name}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant={p.payment_type === "deposit" ? "warning" : "success"}>
+                          {p.payment_type === "deposit" ? "Đặt cọc" : "Quyết toán"}
+                        </Badge>
+                      </td>
+                      <td className="px-4 py-3 text-right text-zinc-600">
+                        {formatVND(p.contract_value)}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-emerald-700">
+                        {formatVND(p.amount)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-zinc-500 text-xs">
+                        {new Date(p.paid_at).toLocaleDateString("vi-VN")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t-2 border-emerald-200 bg-emerald-50">
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-4 py-3 text-right text-sm font-semibold text-emerald-800"
+                    >
+                      Tổng thực nhận:
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700">
+                      {formatVND(rev.total_received)}
+                    </td>
+                    <td />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Campaign detail table */}
       <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">

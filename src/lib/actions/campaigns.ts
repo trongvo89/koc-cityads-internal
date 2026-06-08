@@ -58,6 +58,9 @@ export type CampaignDetail = {
   status: CampaignStatus;
   source: "manual" | "from_proposal";
   package_size: number;
+  contract_value: number;
+  deposit_paid_at: string | null;
+  final_paid_at: string | null;
   start_date: string | null;
   end_date: string | null;
   kocs: CampaignKocRow[];
@@ -113,7 +116,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: campaign, error: ce } = await (supabase
     .from("campaigns")
     .select(
-      "campaign_id, campaign_name, client_id, brief, status, source, package_size, start_date, end_date, clients(company_name)"
+      "campaign_id, campaign_name, client_id, brief, status, source, package_size, contract_value, deposit_paid_at, final_paid_at, start_date, end_date, clients(company_name)"
     )
     .eq("campaign_id", id)
     .single() as any) as { data: any; error: any };
@@ -141,6 +144,9 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
       status: campaign.status,
       source: (campaign.source as "manual" | "from_proposal") ?? "manual",
       package_size: campaign.package_size,
+      contract_value: campaign.contract_value ?? 0,
+      deposit_paid_at: campaign.deposit_paid_at ?? null,
+      final_paid_at: campaign.final_paid_at ?? null,
       start_date: campaign.start_date,
       end_date: campaign.end_date,
       kocs: (kocs ?? []).map((k) => {
@@ -483,5 +489,69 @@ export async function markAsReminded(
   if (error) return { success: false, error: error.message };
 
   revalidatePath(`/admin/campaigns/${campaignId}/reminders`);
+  return { success: true, data: undefined };
+}
+
+// ─── Payment Tracking (Super Admin) ──────────────────────────────────────────
+
+export async function markPaymentReceived(
+  campaignId: string,
+  paymentType: "deposit" | "final"
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Chưa đăng nhập" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (profile?.role !== "super_admin") {
+    return { success: false, error: "Không có quyền thực hiện" };
+  }
+
+  const column = paymentType === "deposit" ? "deposit_paid_at" : "final_paid_at";
+  const { error } = await (supabase
+    .from("campaigns")
+    .update({ [column]: new Date().toISOString() } as any)
+    .eq("campaign_id", campaignId) as any);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/admin/campaigns");
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  revalidatePath("/admin/reports");
+  return { success: true, data: undefined };
+}
+
+export async function clearPaymentDate(
+  campaignId: string,
+  paymentType: "deposit" | "final"
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Chưa đăng nhập" };
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+  if (profile?.role !== "super_admin") {
+    return { success: false, error: "Không có quyền thực hiện" };
+  }
+
+  const column = paymentType === "deposit" ? "deposit_paid_at" : "final_paid_at";
+  const { error } = await (supabase
+    .from("campaigns")
+    .update({ [column]: null } as any)
+    .eq("campaign_id", campaignId) as any);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/admin/campaigns");
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  revalidatePath("/admin/reports");
   return { success: true, data: undefined };
 }

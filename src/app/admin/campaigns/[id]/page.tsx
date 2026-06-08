@@ -4,9 +4,11 @@ import Link from "next/link";
 import { ArrowLeft, Bell, BarChart2 } from "lucide-react";
 import { getCampaignDetail } from "@/lib/actions/campaigns";
 import { getKocs } from "@/lib/actions/kocs";
+import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import KocBoard from "@/components/admin/koc-board";
+import CampaignPaymentPanel from "@/components/admin/campaign-payment-panel";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Nháp",
@@ -44,6 +46,13 @@ export default async function CampaignDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from("profiles").select("role").eq("id", user.id).single()
+    : { data: null };
+  const isSuperAdmin = profile?.role === "super_admin";
 
   const [campaignResult, kocsResult] = await Promise.all([
     getCampaignDetail(id),
@@ -111,6 +120,18 @@ export default async function CampaignDetailPage({
           </Button>
         </div>
       </div>
+
+      {/* Payment tracking — super admin only */}
+      {isSuperAdmin && campaign.contract_value > 0 && (
+        <div className="mb-6">
+          <CampaignPaymentPanel
+            campaignId={campaign.campaign_id}
+            contractValue={campaign.contract_value}
+            depositPaidAt={campaign.deposit_paid_at}
+            finalPaidAt={campaign.final_paid_at}
+          />
+        </div>
+      )}
 
       {/* KOC Board */}
       <KocBoard campaign={campaign} allKocs={allKocs} />
