@@ -8,28 +8,48 @@ import ScriptDetailClient from "@/components/admin/livestream/script-detail-clie
 export default async function ScriptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [scriptResult, hostsResult, productsResult, voicesResult, avatarsResult, referencesResult] = await Promise.all([
-    getScriptDetail(id),
-    getHosts(),
-    getProducts(),
-    getElevenLabsVoices(),
-    getHeyGenAvatars(),
-    getReferences(),
-  ]);
+  // Use allSettled so one failing call doesn't crash the whole page
+  const [scriptResult, hostsResult, productsResult, voicesResult, avatarsResult, referencesResult] =
+    await Promise.allSettled([
+      getScriptDetail(id),
+      getHosts(),
+      getProducts(),
+      getElevenLabsVoices(),
+      getHeyGenAvatars(),
+      getReferences(),
+    ]);
 
-  if (!scriptResult.success) notFound();
+  const script =
+    scriptResult.status === "fulfilled" && scriptResult.value.success
+      ? scriptResult.value.data
+      : null;
 
-  const hosts = hostsResult.success
-    ? hostsResult.data.filter((h) => h.status === "active")
-    : [];
-  const products = productsResult.success ? productsResult.data : [];
-  const voices = voicesResult.success ? voicesResult.data : [];
-  const avatars = avatarsResult.success ? avatarsResult.data : [];
-  const references = referencesResult.success ? referencesResult.data : [];
+  if (!script) notFound();
+
+  const hosts =
+    hostsResult.status === "fulfilled" && hostsResult.value.success
+      ? hostsResult.value.data.filter((h) => h.status === "active")
+      : [];
+  const products =
+    productsResult.status === "fulfilled" && productsResult.value.success
+      ? productsResult.value.data
+      : [];
+  const voices =
+    voicesResult.status === "fulfilled" && voicesResult.value.success
+      ? voicesResult.value.data
+      : [];
+  const avatars =
+    avatarsResult.status === "fulfilled" && avatarsResult.value.success
+      ? avatarsResult.value.data
+      : [];
+  const references =
+    referencesResult.status === "fulfilled" && referencesResult.value.success
+      ? referencesResult.value.data
+      : [];
 
   return (
     <ScriptDetailClient
-      script={scriptResult.data}
+      script={script}
       hosts={hosts}
       products={products}
       voices={voices}
