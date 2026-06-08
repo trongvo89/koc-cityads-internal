@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { deleteReference } from "@/lib/actions/references";
+import { KNOWLEDGE_TYPE_LABEL } from "@/lib/actions/references";
 import type { ReferenceDetail, ReferenceInsightData } from "@/lib/actions/references";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -243,6 +244,9 @@ export default function ReferenceDetailClient({ reference }: { reference: Refere
             <Badge variant={STATUS_VARIANT[reference.status] ?? "secondary"}>
               {STATUS_LABEL[reference.status] ?? reference.status}
             </Badge>
+            <span className="text-xs font-medium text-violet-700 bg-violet-50 border border-violet-200 px-2 py-0.5 rounded-full">
+              {KNOWLEDGE_TYPE_LABEL[reference.knowledge_type] ?? reference.knowledge_type}
+            </span>
             {reference.source_platform && (
               <span className="text-xs text-zinc-400">{reference.source_platform}</span>
             )}
@@ -260,7 +264,7 @@ export default function ReferenceDetailClient({ reference }: { reference: Refere
           )}
         </div>
         <div className="flex gap-2 shrink-0">
-          {reference.status === "transcribed" && !reference.insight && (
+          {reference.knowledge_type === "koc_insight" && reference.status === "transcribed" && !reference.insight && (
             <div className="flex flex-col items-end gap-0.5">
               <Button size="sm" onClick={triggerAnalyze} disabled={isAnalyzing}>
                 {isAnalyzing ? (
@@ -273,7 +277,8 @@ export default function ReferenceDetailClient({ reference }: { reference: Refere
               <p className="text-[10px] text-zinc-400">~₫500–2,000 · Sonnet</p>
             </div>
           )}
-          {(reference.status === "uploaded" || reference.status === "failed") &&
+          {reference.knowledge_type === "koc_insight" &&
+            (reference.status === "uploaded" || reference.status === "failed") &&
             reference.source_type !== "text" && (
               <Button size="sm" variant="outline" onClick={triggerTranscribe} disabled={isProcessing}>
                 {isProcessing ? (
@@ -311,7 +316,8 @@ export default function ReferenceDetailClient({ reference }: { reference: Refere
         </div>
       )}
 
-      {/* Pipeline status steps */}
+      {/* Pipeline status steps — koc_insight only (others go straight to analyzed) */}
+      {reference.knowledge_type === "koc_insight" && (
       <div className="bg-white border border-zinc-200 rounded-lg p-4">
         <p className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-3">Tiến trình xử lý</p>
         <div className="flex items-center gap-2">
@@ -352,8 +358,9 @@ export default function ReferenceDetailClient({ reference }: { reference: Refere
           })}
         </div>
       </div>
+      )}
 
-      {/* Transcript */}
+      {/* Transcript / Content */}
       {reference.transcript && (
         <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
           <button
@@ -362,7 +369,7 @@ export default function ReferenceDetailClient({ reference }: { reference: Refere
             className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors"
           >
             <span>
-              Transcript · {reference.transcript.word_count?.toLocaleString() ?? "?"} từ ·{" "}
+              {reference.knowledge_type === "koc_insight" ? "Transcript" : "Nội dung"} · {reference.transcript.word_count?.toLocaleString() ?? "?"} từ ·{" "}
               <span className="text-zinc-400 font-normal">{reference.transcript.transcription_provider}</span>
             </span>
             {transcriptOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}

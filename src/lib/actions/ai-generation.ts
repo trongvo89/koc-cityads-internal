@@ -1,6 +1,6 @@
 "use server";
 
-import type { ReferenceInsightData } from "./references";
+import type { ReferenceInsightData, ReferenceKnowledgeItem } from "./references";
 
 export type GeneratedHostPersona = {
   name: string;
@@ -85,12 +85,8 @@ type GenerateScriptParams = {
   };
   brief: string;
   duration_minutes: number;
-  // Optional: reference insights for uniqueness
-  references?: {
-    id: string;
-    title: string;
-    insight_data: ReferenceInsightData;
-  }[];
+  // Optional: knowledge base items for uniqueness (type-aware injection)
+  references?: ReferenceKnowledgeItem[];
   approvedScripts?: {
     title: string;
     sections: { section_type: string; content: string }[];
@@ -217,39 +213,61 @@ export async function generateLiveScript(
     storytelling: "kể chuyện, case study, trải nghiệm cá nhân, emotional journey",
   };
 
-  // Reference context block
+  // Type-aware reference context blocks
   let referenceBlock = "";
   if (hasReferences) {
-    referenceBlock = `
+    const byType = {
+      product_info: references!.filter((r) => r.knowledge_type === "product_info"),
+      koc_insight: references!.filter((r) => r.knowledge_type === "koc_insight"),
+      faq_objection: references!.filter((r) => r.knowledge_type === "faq_objection"),
+      allowed_claims: references!.filter((r) => r.knowledge_type === "allowed_claims"),
+      script_template: references!.filter((r) => r.knowledge_type === "script_template"),
+    };
+
+    const sections: string[] = [];
+
+    if (byType.product_info.length > 0) {
+      sections.push(`━━━ 📦 THÔNG TIN SẢN PHẨM (dùng trực tiếp, chính xác 100%) ━━━
+${byType.product_info.map((r) => `[${r.title}]\n${r.raw_text?.slice(0, 1500) ?? ""}`).join("\n\n")}`);
+    }
+
+    if (byType.koc_insight.length > 0) {
+      sections.push(`━━━ 🎥 KỸ THUẬT LIVE THỰC TẾ (học phong cách, KHÔNG copy nội dung) ━━━
+${byType.koc_insight.map((r) => {
+        if (!r.insight_data) return `[${r.title}] — chưa phân tích`;
+        const d = r.insight_data;
+        return `[${r.title}] · ${d.tone_and_energy.energy_level} energy · ${d.tone_and_energy.overall_tone}
+  Hooks: ${d.opening_hooks.slice(0, 2).map((h) => `"${h}"`).join(" / ")}
+  Kỹ thuật: ${d.selling_techniques.slice(0, 2).map((t) => `${t.technique} ("${t.example}")`).join(" | ")}
+  CTA: ${d.cta_styles.slice(0, 2).map((c) => `"${c.example}"`).join(" / ")}
+  Urgency: ${d.urgency_tactics.slice(0, 2).join(" | ")}
+  ${d.tone_and_energy.notable_phrases.length > 0 ? `Catchphrase: "${d.tone_and_energy.notable_phrases.slice(0, 2).join('", "')}"` : ""}`;
+      }).join("\n\n")}`);
+    }
+
+    if (byType.faq_objection.length > 0) {
+      sections.push(`━━━ 💬 FAQ & XỬ LÝ PHẢN ĐỐI (lồng ghép tự nhiên vào kịch bản) ━━━
+${byType.faq_objection.map((r) => `[${r.title}]\n${r.raw_text?.slice(0, 1200) ?? ""}`).join("\n\n")}`);
+    }
+
+    if (byType.allowed_claims.length > 0) {
+      sections.push(`━━━ ✅ ĐIỀU ĐƯỢC & KHÔNG ĐƯỢC NÓI (TUÂN THỦ TUYỆT ĐỐI) ━━━
+${byType.allowed_claims.map((r) => `[${r.title}]\n${r.raw_text?.slice(0, 1000) ?? ""}`).join("\n\n")}`);
+    }
+
+    if (byType.script_template.length > 0) {
+      sections.push(`━━━ 📝 TEMPLATE & TONE THAM KHẢO (học cấu trúc & giọng văn) ━━━
+${byType.script_template.map((r) => `[${r.title}]\n${r.raw_text?.slice(0, 1500) ?? ""}`).join("\n\n")}`);
+    }
+
+    if (sections.length > 0) {
+      referenceBlock = `
 
 ═══════════════════════════════════════════════════
-HỌC TỪ LIVESTREAM THỰC TẾ ĐÃ THÀNH CÔNG
-(Áp dụng kỹ thuật, KHÔNG copy nội dung)
+KNOWLEDGE BASE — TƯ LIỆU THAM KHẢO
 ═══════════════════════════════════════════════════
-${references!.map((ref, i) => {
-  const d = ref.insight_data;
-  return `
-▸ TƯ LIỆU ${i + 1}: ${ref.title}
-  Tổng quan: ${d.summary}
-
-  Hook mẫu (học phong cách, đổi nội dung):
-  ${d.opening_hooks.slice(0, 2).map((h) => `  → "${h}"`).join("\n")}
-
-  Kỹ thuật bán hiệu quả:
-  ${d.selling_techniques.slice(0, 3).map((t) => `  • ${t.technique}: "${t.example}"`).join("\n")}
-
-  CTA mạnh:
-  ${d.cta_styles.slice(0, 2).map((c) => `  • ${c.style}: "${c.example}"`).join("\n")}
-
-  Tương tác khán giả:
-  ${d.engagement_patterns.slice(0, 2).map((e) => `  • ${e.pattern}: ${e.example}`).join("\n")}
-
-  Tạo urgency:
-  ${d.urgency_tactics.slice(0, 2).map((u) => `  • ${u}`).join("\n")}
-
-  Năng lượng & giọng điệu: ${d.tone_and_energy.overall_tone} — level: ${d.tone_and_energy.energy_level}
-  ${d.tone_and_energy.notable_phrases.length > 0 ? `  Catchphrase: "${d.tone_and_energy.notable_phrases.slice(0, 2).join('", "')}"` : ""}`;
-}).join("\n")}`;
+${sections.join("\n\n")}`;
+    }
   }
 
   let approvedBlock = "";
@@ -312,7 +330,7 @@ LƯU Ý QUAN TRỌNG:
 - content phải ĐẦY ĐỦ, sẵn sàng đọc thành TTS ngay — không dùng [placeholder], không dùng "..."
 - Mỗi section ít nhất 3-5 câu, section demo/usp ít nhất 6-8 câu
 - Tổng tất cả duration_seconds phải bằng khoảng ${totalSeconds}
-- ${hasReferences ? "HỌC kỹ thuật từ tư liệu tham khảo nhưng viết nội dung HOÀN TOÀN MỚI cho sản phẩm này" : "Sáng tạo nội dung độc đáo, không generic"}`;
+- ${hasReferences ? "TUÂN THỦ claims policy nếu có | DÙNG product info chính xác | HỌC kỹ thuật KOC nhưng viết nội dung MỚI hoàn toàn" : "Sáng tạo nội dung độc đáo, không generic"}`;
 
   // Draft mode: Haiku (~10x cheaper), fewer tokens, skip reference context
   const model = isDraft ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6";

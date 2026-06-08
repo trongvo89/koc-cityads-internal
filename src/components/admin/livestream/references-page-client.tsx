@@ -7,7 +7,8 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { deleteReference } from "@/lib/actions/references";
-import type { ReferenceMaterial } from "@/lib/actions/references";
+import type { ReferenceMaterial, ReferenceKnowledgeType } from "@/lib/actions/references";
+import { KNOWLEDGE_TYPE_LABEL } from "@/lib/actions/references";
 import ReferenceUploadDialog from "./reference-upload-dialog";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -26,20 +27,21 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "success" | "warn
   failed: "destructive",
 };
 
-const PLATFORM_LABEL: Record<string, string> = {
-  tiktok: "TikTok",
-  shopee: "Shopee",
-  lazada: "Lazada",
-  facebook: "Facebook",
-  youtube: "YouTube",
-  other: "Khác",
+const GROUP_EMOJI: Record<ReferenceKnowledgeType, string> = {
+  product_info: "📦",
+  koc_insight: "🎥",
+  faq_objection: "💬",
+  allowed_claims: "✅",
+  script_template: "📝",
 };
 
-const SOURCE_TYPE_LABEL: Record<string, string> = {
-  video: "Video",
-  audio: "Audio",
-  text: "Văn bản",
-};
+const GROUP_ORDER: ReferenceKnowledgeType[] = [
+  "product_info",
+  "koc_insight",
+  "faq_objection",
+  "allowed_claims",
+  "script_template",
+];
 
 export default function ReferencesPageClient({
   references,
@@ -62,17 +64,24 @@ export default function ReferencesPageClient({
 
   function handleCreated(id: string) {
     router.refresh();
-    // Navigate to detail page so user can see processing status
     router.push(`/admin/livestream/references/${id}`);
   }
+
+  const grouped = GROUP_ORDER.reduce<Record<ReferenceKnowledgeType, ReferenceMaterial[]>>(
+    (acc, kt) => {
+      acc[kt] = references.filter((r) => r.knowledge_type === kt);
+      return acc;
+    },
+    {} as Record<ReferenceKnowledgeType, ReferenceMaterial[]>
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Tư liệu tham khảo</h1>
+          <h1 className="text-2xl font-bold text-zinc-900">Knowledge Base</h1>
           <p className="text-zinc-500 text-sm mt-0.5">
-            Upload livestream thực tế để AI học và tạo kịch bản độc đáo hơn
+            Tư liệu tham khảo để AI tạo kịch bản live chính xác và độc đáo hơn
           </p>
         </div>
         <Button onClick={() => setUploadOpen(true)}>
@@ -87,7 +96,7 @@ export default function ReferencesPageClient({
           <div>
             <p className="text-sm font-medium text-zinc-700">Chưa có tư liệu nào</p>
             <p className="text-xs text-zinc-400 mt-1 max-w-xs">
-              Upload video/audio từ TikTok Live, Shopee Live... hoặc paste transcript để AI học phong cách bán hàng thực tế
+              Thêm product info, clip live thực tế, FAQ, claims policy và script template để AI tạo kịch bản sát nhất
             </p>
           </div>
           <Button size="sm" onClick={() => setUploadOpen(true)}>
@@ -96,69 +105,79 @@ export default function ReferencesPageClient({
           </Button>
         </div>
       ) : (
-        <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-100 bg-zinc-50">
-                <th className="text-left px-4 py-2.5 font-medium text-zinc-600">Tiêu đề</th>
-                <th className="text-left px-4 py-2.5 font-medium text-zinc-600 hidden md:table-cell">Loại</th>
-                <th className="text-left px-4 py-2.5 font-medium text-zinc-600 hidden md:table-cell">Nền tảng</th>
-                <th className="text-left px-4 py-2.5 font-medium text-zinc-600 hidden lg:table-cell">Ngành hàng</th>
-                <th className="text-left px-4 py-2.5 font-medium text-zinc-600">Trạng thái</th>
-                <th className="text-right px-4 py-2.5 font-medium text-zinc-600">Hành động</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-50">
-              {references.map((ref) => (
-                <tr key={ref.id} className="hover:bg-zinc-50/50">
-                  <td className="px-4 py-3">
-                    <div>
-                      <p className="font-medium text-zinc-900 truncate max-w-[200px]">{ref.title}</p>
-                      {ref.product_name && (
-                        <p className="text-xs text-zinc-400 mt-0.5 truncate">{ref.product_name}</p>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell text-zinc-500">
-                    {SOURCE_TYPE_LABEL[ref.source_type] ?? ref.source_type}
-                  </td>
-                  <td className="px-4 py-3 hidden md:table-cell text-zinc-500">
-                    {ref.source_platform ? PLATFORM_LABEL[ref.source_platform] ?? ref.source_platform : "—"}
-                  </td>
-                  <td className="px-4 py-3 hidden lg:table-cell text-zinc-500">
-                    {ref.category ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={STATUS_VARIANT[ref.status] ?? "secondary"}>
-                      {STATUS_LABEL[ref.status] ?? ref.status}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <Link href={`/admin/livestream/references/${ref.id}`}>
-                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                          <Eye className="h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                        disabled={deletingId === ref.id}
-                        onClick={() => handleDelete(ref.id, ref.title)}
-                      >
-                        {deletingId === ref.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-4">
+          {GROUP_ORDER.map((kt) => {
+            const items = grouped[kt];
+            return (
+              <div key={kt} className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 bg-zinc-50">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{GROUP_EMOJI[kt]}</span>
+                    <span className="text-sm font-semibold text-zinc-700">{KNOWLEDGE_TYPE_LABEL[kt]}</span>
+                    <span className="text-xs text-zinc-400 bg-zinc-200 px-1.5 py-0.5 rounded-full font-medium">
+                      {items.length}
+                    </span>
+                  </div>
+                </div>
+
+                {items.length === 0 ? (
+                  <div className="px-4 py-4 text-center">
+                    <p className="text-xs text-zinc-400">Chưa có tư liệu — nhấn "Thêm tư liệu" để bắt đầu</p>
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <tbody className="divide-y divide-zinc-50">
+                      {items.map((ref) => (
+                        <tr key={ref.id} className="hover:bg-zinc-50/50">
+                          <td className="px-4 py-3">
+                            <div>
+                              <p className="font-medium text-zinc-900 truncate max-w-[220px]">{ref.title}</p>
+                              {ref.product_name && (
+                                <p className="text-xs text-zinc-400 mt-0.5 truncate">{ref.product_name}</p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 hidden md:table-cell text-zinc-500 text-xs">
+                            {ref.source_platform ? ref.source_platform.charAt(0).toUpperCase() + ref.source_platform.slice(1) : ref.source_type === "text" ? "Text" : ref.source_type}
+                          </td>
+                          <td className="px-4 py-3 hidden lg:table-cell text-zinc-500 text-xs">
+                            {ref.category ?? "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant={STATUS_VARIANT[ref.status] ?? "secondary"}>
+                              {STATUS_LABEL[ref.status] ?? ref.status}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-1">
+                              <Link href={`/admin/livestream/references/${ref.id}`}>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                                  <Eye className="h-3.5 w-3.5" />
+                                </Button>
+                              </Link>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                disabled={deletingId === ref.id}
+                                onClick={() => handleDelete(ref.id, ref.title)}
+                              >
+                                {deletingId === ref.id ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

@@ -28,7 +28,8 @@ import type { ScriptDetail, AiHostListItem, ProductListItem } from "@/lib/action
 import type { ScriptSection } from "@/lib/actions/ai-generation";
 import type { ElevenLabsVoice } from "@/lib/actions/audio";
 import type { HeyGenAvatar } from "@/lib/actions/video";
-import type { ReferenceMaterial } from "@/lib/actions/references";
+import type { ReferenceMaterial, ReferenceKnowledgeType } from "@/lib/actions/references";
+import { KNOWLEDGE_TYPE_LABEL } from "@/lib/actions/references";
 
 const SECTION_LABEL: Record<string, string> = {
   intro: "Mở đầu", hook: "Hook", product_intro: "Giới thiệu SP",
@@ -447,7 +448,7 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
             </div>
           </div>
 
-          {/* Reference selector panel */}
+          {/* Knowledge base panel */}
           <div className="bg-white border border-zinc-200 rounded-lg overflow-hidden">
             <button
               type="button"
@@ -456,7 +457,7 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
             >
               <div className="flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-violet-500" />
-                <span>1b. Tư liệu tham khảo</span>
+                <span>1b. Knowledge base</span>
                 {selectedRefIds.size > 0 && (
                   <span className="bg-violet-100 text-violet-700 text-xs font-medium px-2 py-0.5 rounded-full">
                     {selectedRefIds.size} đã chọn
@@ -466,74 +467,83 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
               {refPanelOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
             </button>
             {refPanelOpen && (
-              <div className="px-4 pb-4 space-y-3 border-t border-zinc-100">
+              <div className="pb-3 border-t border-zinc-100">
                 {references.length === 0 ? (
                   <div className="py-4 text-center">
                     <p className="text-xs text-zinc-400">Chưa có tư liệu nào</p>
-                    <Link href="/admin/livestream/references" className="text-xs text-violet-600 hover:underline">
-                      + Thêm tư liệu tham khảo
+                    <Link href="/admin/livestream/references" className="text-xs text-violet-600 hover:underline mt-1 block">
+                      + Thêm vào knowledge base
                     </Link>
                   </div>
                 ) : (
                   <>
-                    <div className="pt-3 space-y-1.5">
-                      {references
-                        .filter((r) => r.status === "analyzed")
-                        .map((ref) => {
-                          const checked = selectedRefIds.has(ref.id);
-                          return (
-                            <label
-                              key={ref.id}
-                              className={`flex items-start gap-2.5 cursor-pointer rounded-md px-2.5 py-2 border transition-colors ${
-                                checked
-                                  ? "bg-violet-50 border-violet-200"
-                                  : "border-zinc-100 hover:bg-zinc-50"
-                              }`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
-                                  setSelectedRefIds((prev) => {
-                                    const next = new Set(prev);
-                                    if (checked) next.delete(ref.id);
-                                    else next.add(ref.id);
-                                    return next;
-                                  });
-                                }}
-                                className="mt-0.5 accent-violet-600"
-                              />
-                              <div className="min-w-0">
-                                <p className="text-xs font-medium text-zinc-800 truncate">{ref.title}</p>
-                                {(ref.source_platform || ref.category) && (
-                                  <p className="text-xs text-zinc-400 mt-0.5">
-                                    {[ref.source_platform, ref.category].filter(Boolean).join(" · ")}
-                                  </p>
-                                )}
-                              </div>
-                            </label>
-                          );
-                        })}
-                      {references.filter((r) => r.status !== "analyzed").length > 0 && (
-                        <p className="text-xs text-zinc-400 pt-1">
-                          {references.filter((r) => r.status !== "analyzed").length} tư liệu chưa phân tích xong
+                    {(
+                      [
+                        ["📦", "product_info"],
+                        ["🎥", "koc_insight"],
+                        ["💬", "faq_objection"],
+                        ["✅", "allowed_claims"],
+                        ["📝", "script_template"],
+                      ] as [string, ReferenceKnowledgeType][]
+                    ).map(([emoji, kt]) => {
+                      const group = references.filter((r) => r.knowledge_type === kt && r.status === "analyzed");
+                      if (group.length === 0) return null;
+                      return (
+                        <div key={kt} className="px-4 pt-3">
+                          <p className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wide mb-1.5 flex items-center gap-1">
+                            <span>{emoji}</span>{KNOWLEDGE_TYPE_LABEL[kt]}
+                          </p>
+                          <div className="space-y-1">
+                            {group.map((ref) => {
+                              const checked = selectedRefIds.has(ref.id);
+                              return (
+                                <label
+                                  key={ref.id}
+                                  className={`flex items-center gap-2.5 cursor-pointer rounded px-2 py-1.5 border transition-colors ${
+                                    checked ? "bg-violet-50 border-violet-200" : "border-zinc-100 hover:bg-zinc-50"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={() => {
+                                      setSelectedRefIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (checked) next.delete(ref.id); else next.add(ref.id);
+                                        return next;
+                                      });
+                                    }}
+                                    className="accent-violet-600 shrink-0"
+                                  />
+                                  <span className="text-xs text-zinc-800 truncate">{ref.title}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {references.filter((r) => r.status !== "analyzed").length > 0 && (
+                      <p className="text-xs text-zinc-400 px-4 pt-2">
+                        {references.filter((r) => r.status !== "analyzed").length} tư liệu chưa sẵn sàng
+                      </p>
+                    )}
+                    <div className="px-4 pt-3 space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-600">
+                        <input
+                          type="checkbox"
+                          checked={includeApprovedScripts}
+                          onChange={(e) => setIncludeApprovedScripts(e.target.checked)}
+                          className="accent-violet-600"
+                        />
+                        Kèm kịch bản đã duyệt (cùng ngành hàng)
+                      </label>
+                      {selectedRefIds.size > 0 && (
+                        <p className="text-xs text-violet-600 bg-violet-50 px-2.5 py-1.5 rounded">
+                          ✦ AI sẽ dùng Sonnet + {selectedRefIds.size} tư liệu từ knowledge base
                         </p>
                       )}
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-600">
-                      <input
-                        type="checkbox"
-                        checked={includeApprovedScripts}
-                        onChange={(e) => setIncludeApprovedScripts(e.target.checked)}
-                        className="accent-violet-600"
-                      />
-                      Kèm kịch bản đã duyệt trước (cùng ngành hàng)
-                    </label>
-                    {selectedRefIds.size > 0 && (
-                      <p className="text-xs text-violet-600 bg-violet-50 px-2.5 py-1.5 rounded">
-                        ✦ AI sẽ dùng Sonnet + học từ {selectedRefIds.size} tư liệu để tạo kịch bản độc đáo hơn
-                      </p>
-                    )}
                   </>
                 )}
               </div>
