@@ -23,10 +23,9 @@ import {
 import {
   createReferenceFromFile,
   createReferenceFromText,
-  type ReferenceKnowledgeType,
-  KNOWLEDGE_TYPE_LABEL,
-  KNOWLEDGE_TYPE_DESC,
 } from "@/lib/actions/references";
+import type { ReferenceKnowledgeType } from "@/lib/actions/reference-constants";
+import { KNOWLEDGE_TYPE_LABEL, KNOWLEDGE_TYPE_DESC } from "@/lib/actions/reference-constants";
 
 const PLATFORM_OPTIONS = [
   { value: "tiktok", label: "TikTok" },

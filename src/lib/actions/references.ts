@@ -3,31 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { createClient, createServiceClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/types/app.types";
+import type { ReferenceKnowledgeType } from "./reference-constants";
+// Re-export type only — constants must be imported from reference-constants directly
+export type { ReferenceKnowledgeType } from "./reference-constants";
 
 export type ReferenceStatus = "uploaded" | "processing" | "transcribed" | "analyzed" | "failed";
-
-export type ReferenceKnowledgeType =
-  | "product_info"
-  | "koc_insight"
-  | "faq_objection"
-  | "allowed_claims"
-  | "script_template";
-
-export const KNOWLEDGE_TYPE_LABEL: Record<ReferenceKnowledgeType, string> = {
-  product_info: "Product info",
-  koc_insight: "KOC insight",
-  faq_objection: "FAQ / Objection",
-  allowed_claims: "Allowed & forbidden claims",
-  script_template: "Script template / Tone",
-};
-
-export const KNOWLEDGE_TYPE_DESC: Record<ReferenceKnowledgeType, string> = {
-  product_info: "Thông số, tính năng, chứng nhận, hình ảnh mô tả sản phẩm",
-  koc_insight: "Video/audio livestream thực tế — AI học phong cách bán hàng",
-  faq_objection: "Câu hỏi thường gặp, cách xử lý phản đối từ khách",
-  allowed_claims: "Điều được phép và không được phép nói về sản phẩm",
-  script_template: "Kịch bản mẫu, tone & style tham khảo",
-};
 
 export type ReferenceMaterial = {
   id: string;

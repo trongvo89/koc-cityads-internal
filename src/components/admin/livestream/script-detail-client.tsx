@@ -28,8 +28,9 @@ import type { ScriptDetail, AiHostListItem, ProductListItem } from "@/lib/action
 import type { ScriptSection } from "@/lib/actions/ai-generation";
 import type { ElevenLabsVoice } from "@/lib/actions/audio";
 import type { HeyGenAvatar } from "@/lib/actions/video";
-import type { ReferenceMaterial, ReferenceKnowledgeType } from "@/lib/actions/references";
-import { KNOWLEDGE_TYPE_LABEL } from "@/lib/actions/references";
+import type { ReferenceMaterial } from "@/lib/actions/references";
+import type { ReferenceKnowledgeType } from "@/lib/actions/reference-constants";
+import { KNOWLEDGE_TYPE_LABEL } from "@/lib/actions/reference-constants";
 
 const SECTION_LABEL: Record<string, string> = {
   intro: "Mở đầu", hook: "Hook", product_intro: "Giới thiệu SP",

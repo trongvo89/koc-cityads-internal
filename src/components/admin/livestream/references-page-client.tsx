@@ -7,8 +7,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { deleteReference } from "@/lib/actions/references";
-import type { ReferenceMaterial, ReferenceKnowledgeType } from "@/lib/actions/references";
-import { KNOWLEDGE_TYPE_LABEL } from "@/lib/actions/references";
+import type { ReferenceMaterial } from "@/lib/actions/references";
+import type { ReferenceKnowledgeType } from "@/lib/actions/reference-constants";
+import { KNOWLEDGE_TYPE_LABEL } from "@/lib/actions/reference-constants";
 import ReferenceUploadDialog from "./reference-upload-dialog";
 
 const STATUS_LABEL: Record<string, string> = {

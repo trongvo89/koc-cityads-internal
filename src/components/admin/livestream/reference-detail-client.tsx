@@ -16,8 +16,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { deleteReference } from "@/lib/actions/references";
-import { KNOWLEDGE_TYPE_LABEL } from "@/lib/actions/references";
 import type { ReferenceDetail, ReferenceInsightData } from "@/lib/actions/references";
+import { KNOWLEDGE_TYPE_LABEL } from "@/lib/actions/reference-constants";
 
 const STATUS_LABEL: Record<string, string> = {
   uploaded: "Chờ xử lý",
