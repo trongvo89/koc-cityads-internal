@@ -14,6 +14,7 @@ export type PaymentRow = {
   contract_value: number;
   payment_type: "deposit" | "final";
   amount: number;
+  invoice: string | null;
   paid_at: string;
 };
 
@@ -182,13 +183,13 @@ export async function getMonthlyRevenue(
     await Promise.all([
       supabase
         .from("campaigns")
-        .select("campaign_id, campaign_name, contract_value, deposit_paid_at, clients(company_name)" as any)
+        .select("campaign_id, campaign_name, contract_value, deposit_paid_at, deposit_amount, deposit_invoice, clients(company_name)" as any)
         .gte("deposit_paid_at", start)
         .lt("deposit_paid_at", end)
         .order("deposit_paid_at", { ascending: true }) as any,
       supabase
         .from("campaigns")
-        .select("campaign_id, campaign_name, contract_value, final_paid_at, clients(company_name)" as any)
+        .select("campaign_id, campaign_name, contract_value, final_paid_at, final_amount, final_invoice, clients(company_name)" as any)
         .gte("final_paid_at", start)
         .lt("final_paid_at", end)
         .order("final_paid_at", { ascending: true }) as any,
@@ -206,7 +207,8 @@ export async function getMonthlyRevenue(
       client_name: c.clients?.company_name ?? "—",
       contract_value: c.contract_value ?? 0,
       payment_type: "deposit",
-      amount: Math.floor((c.contract_value ?? 0) / 2),
+      amount: c.deposit_amount ?? Math.floor((c.contract_value ?? 0) / 2),
+      invoice: c.deposit_invoice ?? null,
       paid_at: c.deposit_paid_at,
     });
   }
@@ -218,7 +220,8 @@ export async function getMonthlyRevenue(
       client_name: c.clients?.company_name ?? "—",
       contract_value: c.contract_value ?? 0,
       payment_type: "final",
-      amount: Math.floor((c.contract_value ?? 0) / 2),
+      amount: c.final_amount ?? Math.floor((c.contract_value ?? 0) / 2),
+      invoice: c.final_invoice ?? null,
       paid_at: c.final_paid_at,
     });
   }

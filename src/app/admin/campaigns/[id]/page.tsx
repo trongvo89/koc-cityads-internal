@@ -128,7 +128,11 @@ export default async function CampaignDetailPage({
             campaignId={campaign.campaign_id}
             contractValue={campaign.contract_value}
             depositPaidAt={campaign.deposit_paid_at}
+            depositAmount={campaign.deposit_amount}
+            depositInvoice={campaign.deposit_invoice}
             finalPaidAt={campaign.final_paid_at}
+            finalAmount={campaign.final_amount}
+            finalInvoice={campaign.final_invoice}
           />
         </div>
       )}

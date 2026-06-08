@@ -207,6 +207,9 @@ export default async function ReportsPage({
                     <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
                       Thực nhận
                     </th>
+                    <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                      Số HĐ
+                    </th>
                     <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
                       Ngày nhận
                     </th>
@@ -233,6 +236,9 @@ export default async function ReportsPage({
                       <td className="px-4 py-3 text-right font-medium text-emerald-700">
                         {formatVND(p.amount)}
                       </td>
+                      <td className="px-4 py-3 text-zinc-500 text-xs">
+                        {p.invoice ?? <span className="text-zinc-300">—</span>}
+                      </td>
                       <td className="px-4 py-3 text-right text-zinc-500 text-xs">
                         {new Date(p.paid_at).toLocaleDateString("vi-VN")}
                       </td>
@@ -250,6 +256,7 @@ export default async function ReportsPage({
                     <td className="px-4 py-3 text-right text-sm font-bold text-emerald-700">
                       {formatVND(rev.total_received)}
                     </td>
+                    <td />
                     <td />
                   </tr>
                 </tfoot>

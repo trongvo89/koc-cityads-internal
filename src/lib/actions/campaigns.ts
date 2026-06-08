@@ -62,7 +62,11 @@ export type CampaignDetail = {
   package_size: number;
   contract_value: number;
   deposit_paid_at: string | null;
+  deposit_amount: number | null;
+  deposit_invoice: string | null;
   final_paid_at: string | null;
+  final_amount: number | null;
+  final_invoice: string | null;
   start_date: string | null;
   end_date: string | null;
   kocs: CampaignKocRow[];
@@ -120,7 +124,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: campaign, error: ce } = await (supabase
     .from("campaigns")
     .select(
-      "campaign_id, campaign_name, client_id, brief, status, source, package_size, contract_value, deposit_paid_at, final_paid_at, start_date, end_date, clients(company_name)"
+      "campaign_id, campaign_name, client_id, brief, status, source, package_size, contract_value, deposit_paid_at, deposit_amount, deposit_invoice, final_paid_at, final_amount, final_invoice, start_date, end_date, clients(company_name)"
     )
     .eq("campaign_id", id)
     .single() as any) as { data: any; error: any };
@@ -150,7 +154,11 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
       package_size: campaign.package_size,
       contract_value: campaign.contract_value ?? 0,
       deposit_paid_at: campaign.deposit_paid_at ?? null,
+      deposit_amount: campaign.deposit_amount ?? null,
+      deposit_invoice: campaign.deposit_invoice ?? null,
       final_paid_at: campaign.final_paid_at ?? null,
+      final_amount: campaign.final_amount ?? null,
+      final_invoice: campaign.final_invoice ?? null,
       start_date: campaign.start_date,
       end_date: campaign.end_date,
       kocs: (kocs ?? []).map((k) => {
@@ -500,7 +508,9 @@ export async function markAsReminded(
 
 export async function markPaymentReceived(
   campaignId: string,
-  paymentType: "deposit" | "final"
+  paymentType: "deposit" | "final",
+  amount: number,
+  invoice: string | null
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -515,10 +525,14 @@ export async function markPaymentReceived(
     return { success: false, error: "Không có quyền thực hiện" };
   }
 
-  const column = paymentType === "deposit" ? "deposit_paid_at" : "final_paid_at";
+  const isDeposit = paymentType === "deposit";
+  const patch = isDeposit
+    ? { deposit_paid_at: new Date().toISOString(), deposit_amount: amount, deposit_invoice: invoice || null }
+    : { final_paid_at: new Date().toISOString(), final_amount: amount, final_invoice: invoice || null };
+
   const { error } = await (supabase
     .from("campaigns")
-    .update({ [column]: new Date().toISOString() } as any)
+    .update(patch as any)
     .eq("campaign_id", campaignId) as any);
 
   if (error) return { success: false, error: error.message };
@@ -546,10 +560,13 @@ export async function clearPaymentDate(
     return { success: false, error: "Không có quyền thực hiện" };
   }
 
-  const column = paymentType === "deposit" ? "deposit_paid_at" : "final_paid_at";
+  const patch = paymentType === "deposit"
+    ? { deposit_paid_at: null, deposit_amount: null, deposit_invoice: null }
+    : { final_paid_at: null, final_amount: null, final_invoice: null };
+
   const { error } = await (supabase
     .from("campaigns")
-    .update({ [column]: null } as any)
+    .update(patch as any)
     .eq("campaign_id", campaignId) as any);
 
   if (error) return { success: false, error: error.message };
