@@ -3,6 +3,30 @@ import { createServiceClient } from "@/lib/supabase/server";
 
 export const maxDuration = 60;
 
+// Attempt to close a truncated JSON object by balancing brackets
+function repairJson(raw: string): Record<string, unknown> | null {
+  try {
+    // Walk backwards to find the last complete key-value pair
+    let s = raw.trimEnd();
+    // Remove trailing comma if present
+    if (s.endsWith(",")) s = s.slice(0, -1);
+    // Count open braces/brackets and close what's missing
+    let depth = 0;
+    const stack: string[] = [];
+    for (const ch of s) {
+      if (ch === "{" || ch === "[") stack.push(ch);
+      else if (ch === "}" || ch === "]") stack.pop();
+    }
+    // Close in reverse order
+    for (let i = stack.length - 1; i >= 0; i--) {
+      s += stack[i] === "{" ? "}" : "]";
+    }
+    return JSON.parse(s) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const { reference_id, transcript_id } = await req.json() as {
     reference_id: string;
@@ -55,58 +79,21 @@ export async function POST(req: NextRequest) {
     // Trim transcript if very long (Claude Sonnet context limit is large but cost-wise trim at ~50K chars)
     const transcriptText = (transcript.full_text as string).slice(0, 50000);
 
-    const prompt = `Bạn là chuyên gia phân tích nội dung livestream bán hàng tại Việt Nam (TikTok Live, Shopee Live, v.v.).
+    const prompt = `Bạn là chuyên gia phân tích livestream bán hàng Việt Nam. Phân tích transcript sau và trả về JSON ngắn gọn.
 
-Phân tích bản ghi livestream dưới đây và trích xuất các insight bán hàng có cấu trúc.
-
-=== BẢN GHI LIVESTREAM ===
+TRANSCRIPT (${transcriptText.length} ký tự):
 ${transcriptText}
-=== KẾT THÚC ===
 
-Thông tin bổ sung:
-- Nền tảng: ${ref?.source_platform ?? "Không rõ"}
-- Danh mục sản phẩm: ${ref?.category ?? "Không rõ"}
+Nền tảng: ${ref?.source_platform ?? "Không rõ"} | Ngành: ${ref?.category ?? "Không rõ"}
 
-Trả về JSON (chỉ JSON, không markdown) với cấu trúc sau:
-{
-  "opening_hooks": ["Các câu mở đầu thu hút viewer (ít nhất 3 câu, nguyên văn hoặc paraphrase)"],
-  "selling_techniques": [
-    {"technique": "Tên kỹ thuật (VD: So sánh giá, Demo trực tiếp, FOMO...)", "example": "Trích dẫn hoặc mô tả cách host sử dụng", "effectiveness": "Đánh giá ngắn về hiệu quả"}
-  ],
-  "engagement_patterns": [
-    {"pattern": "Kiểu tương tác (VD: Hỏi đáp, Minigame, Đếm ngược...)", "example": "Cách host thực hiện"}
-  ],
-  "product_presentation_flow": ["Bước 1: ...", "Bước 2: ...", "..."],
-  "cta_styles": [
-    {"style": "Kiểu kêu gọi mua (VD: Đếm ngược, Giới hạn số lượng...)", "example": "Câu nói cụ thể"}
-  ],
-  "audience_interaction": [
-    {"type": "Kiểu tương tác (VD: Đọc comment, Trả lời câu hỏi...)", "example": "Cách thực hiện"}
-  ],
-  "tone_and_energy": {
-    "overall_tone": "Mô tả giọng điệu chung",
-    "energy_level": "low | medium | high | dynamic",
-    "language_register": "formal | casual | mixed",
-    "notable_phrases": ["Các catchphrase hoặc cách nói đặc trưng"]
-  },
-  "objection_handling": [
-    {"objection": "Phản đối/lo ngại phổ biến", "response": "Cách host xử lý"}
-  ],
-  "urgency_tactics": ["Các chiến thuật tạo sự cấp bách"],
-  "summary": "Tóm tắt 3-5 câu về phong cách bán hàng tổng thể và điểm mạnh của livestream này",
-  "quality_score": 3
-}
+Trả về JSON (chỉ JSON thuần, không markdown). Mỗi array TỐI ĐA 3 items, mỗi string TỐI ĐA 80 ký tự:
+{"opening_hooks":["hook1","hook2","hook3"],"selling_techniques":[{"technique":"tên","example":"ví dụ ngắn","effectiveness":"hiệu quả"}],"engagement_patterns":[{"pattern":"kiểu","example":"cách làm"}],"product_presentation_flow":["bước1","bước2","bước3"],"cta_styles":[{"style":"kiểu","example":"câu nói"}],"audience_interaction":[{"type":"kiểu","example":"cách"}],"tone_and_energy":{"overall_tone":"mô tả","energy_level":"low|medium|high|dynamic","language_register":"formal|casual|mixed","notable_phrases":["phrase1","phrase2"]},"objection_handling":[{"objection":"lo ngại","response":"cách xử lý"}],"urgency_tactics":["tactic1","tactic2"],"summary":"tóm tắt 2-3 câu ngắn về phong cách bán","quality_score":3}
 
-Yêu cầu:
-- Trích xuất từ nội dung thực tế, không bịa
-- Mỗi mục ít nhất 2-3 items nếu có trong transcript
-- Nếu transcript quá ngắn hoặc không rõ ràng, cho quality_score thấp (1-2)
-- quality_score từ 1-5 dựa trên độ phong phú và rõ ràng của nội dung
-- Giữ nguyên tiếng Việt`;
+Yêu cầu: trích xuất từ nội dung thực, không bịa, giữ tiếng Việt, quality_score 1-5.`;
 
     const response = await anthropic.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 3000,
+      max_tokens: 4096,
       messages: [{ role: "user", content: prompt }],
     });
 
@@ -114,7 +101,16 @@ Yêu cầu:
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("AI không trả về JSON hợp lệ");
 
-    const insightData = JSON.parse(jsonMatch[0]);
+    let insightData: Record<string, unknown>;
+    try {
+      insightData = JSON.parse(jsonMatch[0]);
+    } catch {
+      // JSON bị cắt giữa — thử repair bằng cách loại bỏ phần cuối không hợp lệ
+      const raw = jsonMatch[0];
+      const repaired = repairJson(raw);
+      if (!repaired) throw new Error("Không thể parse JSON từ AI response");
+      insightData = repaired;
+    }
 
     // Save insights
     const { error: insightErr } = await supabase
