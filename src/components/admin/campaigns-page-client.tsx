@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, CircleDollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -118,6 +118,9 @@ export default function CampaignsPageClient({
                 <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
                   Thời gian
                 </th>
+                <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                  Thanh toán
+                </th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -162,6 +165,30 @@ export default function CampaignsPageClient({
                     {c.end_date
                       ? ` → ${new Date(c.end_date).toLocaleDateString("vi-VN")}`
                       : ""}
+                  </td>
+                  <td className="px-4 py-3">
+                    {c.contract_value > 0 ? (
+                      <div className="flex items-center gap-1">
+                        <span
+                          title={c.deposit_paid_at ? `Cọc: ${new Date(c.deposit_paid_at).toLocaleDateString("vi-VN")}` : "Chưa nhận cọc"}
+                          className={`w-2 h-2 rounded-full ${c.deposit_paid_at ? "bg-emerald-500" : "bg-zinc-200"}`}
+                        />
+                        <span
+                          title={c.final_paid_at ? `Quyết toán: ${new Date(c.final_paid_at).toLocaleDateString("vi-VN")}` : "Chưa quyết toán"}
+                          className={`w-2 h-2 rounded-full ${c.final_paid_at ? "bg-emerald-500" : "bg-zinc-200"}`}
+                        />
+                        {!c.deposit_paid_at && (
+                          <Link
+                            href={`/admin/campaigns/${c.campaign_id}`}
+                            className="ml-1 text-xs text-amber-600 hover:underline"
+                          >
+                            Nhập tiền
+                          </Link>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-zinc-300 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">

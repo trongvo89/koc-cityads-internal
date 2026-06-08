@@ -19,6 +19,8 @@ export type CampaignListItem = {
   end_date: string | null;
   brief: string | null;
   contract_value: number;
+  deposit_paid_at: string | null;
+  final_paid_at: string | null;
   created_at: string;
 };
 
@@ -84,10 +86,10 @@ export type ReminderKoc = {
 export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
+  const { data, error } = await (supabase
     .from("campaigns")
-    .select("campaign_id, campaign_name, brief, status, package_size, contract_value, start_date, end_date, created_at, clients(company_name), campaign_kocs(count)")
-    .order("created_at", { ascending: false });
+    .select("campaign_id, campaign_name, brief, status, package_size, contract_value, deposit_paid_at, final_paid_at, start_date, end_date, created_at, clients(company_name), campaign_kocs(count)")
+    .order("created_at", { ascending: false }) as any) as { data: any[]; error: any };
 
   if (error) return { success: false, error: error.message };
 
@@ -104,6 +106,8 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
       end_date: c.end_date,
       brief: c.brief,
       contract_value: c.contract_value,
+      deposit_paid_at: c.deposit_paid_at ?? null,
+      final_paid_at: c.final_paid_at ?? null,
       created_at: c.created_at,
     })),
   };
@@ -492,7 +496,7 @@ export async function markAsReminded(
   return { success: true, data: undefined };
 }
 
-// ─── Payment Tracking (Super Admin) ──────────────────────────────────────────
+// ─── Payment Tracking ────────────────────────────────────────────────────────
 
 export async function markPaymentReceived(
   campaignId: string,
@@ -507,7 +511,7 @@ export async function markPaymentReceived(
     .select("role")
     .eq("id", user.id)
     .single();
-  if (profile?.role !== "super_admin") {
+  if (!["super_admin", "admin", "operator"].includes(profile?.role ?? "")) {
     return { success: false, error: "Không có quyền thực hiện" };
   }
 
@@ -538,7 +542,7 @@ export async function clearPaymentDate(
     .select("role")
     .eq("id", user.id)
     .single();
-  if (profile?.role !== "super_admin") {
+  if (!["super_admin", "admin", "operator"].includes(profile?.role ?? "")) {
     return { success: false, error: "Không có quyền thực hiện" };
   }
 

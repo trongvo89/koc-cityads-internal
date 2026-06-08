@@ -52,7 +52,7 @@ export default async function CampaignDetailPage({
   const { data: profile } = user
     ? await supabase.from("profiles").select("role").eq("id", user.id).single()
     : { data: null };
-  const isSuperAdmin = profile?.role === "super_admin";
+  const isInternalUser = ["super_admin", "admin", "operator"].includes(profile?.role ?? "");
 
   const [campaignResult, kocsResult] = await Promise.all([
     getCampaignDetail(id),
@@ -121,8 +121,8 @@ export default async function CampaignDetailPage({
         </div>
       </div>
 
-      {/* Payment tracking — super admin only */}
-      {isSuperAdmin && campaign.contract_value > 0 && (
+      {/* Payment tracking */}
+      {isInternalUser && campaign.contract_value > 0 && (
         <div className="mb-6">
           <CampaignPaymentPanel
             campaignId={campaign.campaign_id}
