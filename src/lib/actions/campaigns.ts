@@ -510,7 +510,8 @@ export async function markPaymentReceived(
   campaignId: string,
   paymentType: "deposit" | "final",
   amount: number,
-  invoice: string | null
+  invoice: string | null,
+  paidDate: string // "YYYY-MM-DD" — ngày thực nhận tiền
 ): Promise<ActionResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -525,10 +526,13 @@ export async function markPaymentReceived(
     return { success: false, error: "Không có quyền thực hiện" };
   }
 
+  // Store noon UTC on the given date so month attribution is unambiguous
+  const paidAt = new Date(`${paidDate}T12:00:00Z`).toISOString();
+
   const isDeposit = paymentType === "deposit";
   const patch = isDeposit
-    ? { deposit_paid_at: new Date().toISOString(), deposit_amount: amount, deposit_invoice: invoice || null }
-    : { final_paid_at: new Date().toISOString(), final_amount: amount, final_invoice: invoice || null };
+    ? { deposit_paid_at: paidAt, deposit_amount: amount, deposit_invoice: invoice || null }
+    : { final_paid_at: paidAt, final_amount: amount, final_invoice: invoice || null };
 
   const { error } = await (supabase
     .from("campaigns")

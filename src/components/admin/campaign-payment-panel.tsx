@@ -18,6 +18,14 @@ function formatDate(iso: string) {
   });
 }
 
+function todayLocal(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 type Props = {
   campaignId: string;
   contractValue: number;
@@ -51,11 +59,13 @@ function PaymentCard({
   const [error, setError] = useState<string | null>(null);
   const [amountInput, setAmountInput] = useState("");
   const [invoiceInput, setInvoiceInput] = useState("");
+  const [dateInput, setDateInput] = useState(todayLocal());
   const [showForm, setShowForm] = useState(false);
 
   function openForm() {
     setAmountInput("");
     setInvoiceInput("");
+    setDateInput(todayLocal());
     setError(null);
     setShowForm(true);
   }
@@ -66,10 +76,14 @@ function PaymentCard({
       setError("Vui lòng nhập số tiền thực nhận");
       return;
     }
+    if (!dateInput) {
+      setError("Vui lòng chọn ngày nhận tiền");
+      return;
+    }
     setError(null);
     setPendingAction("mark");
     startTransition(async () => {
-      const result = await markPaymentReceived(campaignId, type, amt, invoiceInput.trim() || null);
+      const result = await markPaymentReceived(campaignId, type, amt, invoiceInput.trim() || null, dateInput);
       if (!result.success) setError(result.error);
       else setShowForm(false);
       setPendingAction(null);
@@ -86,6 +100,11 @@ function PaymentCard({
       setPendingAction(null);
     });
   }
+
+  // Derive month label from paid date for display
+  const paidMonth = paidAt
+    ? new Date(paidAt).toLocaleDateString("vi-VN", { month: "long", year: "numeric" })
+    : null;
 
   return (
     <div className={`rounded-lg border p-3 ${paidAt ? "bg-emerald-50 border-emerald-200" : "bg-zinc-50 border-zinc-200"}`}>
@@ -104,10 +123,11 @@ function PaymentCard({
             {paidAmount != null ? formatVND(paidAmount) : "—"}
           </p>
           <div className="flex items-start justify-between gap-2">
-            <div>
+            <div className="space-y-0.5">
               <Badge variant="success">Đã nhận {formatDate(paidAt)}</Badge>
+              <p className="text-xs text-emerald-700 font-medium">Tháng: {paidMonth}</p>
               {invoice && (
-                <p className="text-xs text-zinc-500 mt-1">HĐ: {invoice}</p>
+                <p className="text-xs text-zinc-500">HĐ: {invoice}</p>
               )}
             </div>
             <button
@@ -127,6 +147,26 @@ function PaymentCard({
         </>
       ) : showForm ? (
         <div className="space-y-2">
+          <div>
+            <label className="text-xs text-zinc-500 block mb-1">
+              Ngày nhận tiền <span className="text-zinc-400">(xác định tháng hoa hồng)</span>
+            </label>
+            <input
+              type="date"
+              value={dateInput}
+              max={todayLocal()}
+              onChange={(e) => setDateInput(e.target.value)}
+              className="w-full text-sm border border-zinc-300 rounded px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-zinc-400 bg-white"
+            />
+            {dateInput && (
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Tính vào:{" "}
+                <span className="font-medium text-zinc-700">
+                  {new Date(`${dateInput}T12:00:00Z`).toLocaleDateString("vi-VN", { month: "long", year: "numeric" })}
+                </span>
+              </p>
+            )}
+          </div>
           <div>
             <label className="text-xs text-zinc-500 block mb-1">Số tiền thực nhận</label>
             <input
