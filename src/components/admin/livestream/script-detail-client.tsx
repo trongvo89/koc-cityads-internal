@@ -157,22 +157,23 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
     return () => clearInterval(interval);
   }, [sections, pollVideoStatus]);
 
-  function handleGenerate() {
+  function handleGenerate(mode: "draft" | "final") {
     if (!productId) { setError("Chọn sản phẩm trước khi generate kịch bản"); return; }
     setError(null);
     const selectedProduct = products.find((p) => p.product_id === productId);
     const selectedHost = hosts.find((h) => h.host_id === hostId);
     startGenerate(async () => {
-      // Fetch reference insights if selected
-      const refIds = Array.from(selectedRefIds);
+      // Draft mode skips reference lookup to save cost
+      const refIds = mode === "final" ? Array.from(selectedRefIds) : [];
       const [insightsResult, approvedResult] = await Promise.all([
         refIds.length > 0 ? getInsightsForReferences(refIds) : Promise.resolve({ success: true as const, data: [] }),
-        includeApprovedScripts
+        mode === "final" && includeApprovedScripts
           ? getApprovedScriptsByCategory(selectedProduct?.category ?? null)
           : Promise.resolve({ success: true as const, data: [] }),
       ]);
 
       const result = await generateLiveScript({
+        mode,
         product: {
           name: selectedProduct?.name ?? "Sản phẩm",
           description: selectedProduct?.description ?? null,
@@ -424,11 +425,26 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
               <Textarea value={brief} onChange={(e) => setBrief(e.target.value)}
                 placeholder="Yêu cầu đặc biệt, tone, sản phẩm đang sale..." rows={3} />
             </div>
-            <Button className="w-full" onClick={handleGenerate} disabled={isGenerating || !productId}>
-              {isGenerating ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> :
-                <Sparkles className="h-4 w-4 mr-1.5" />}
-              {isGenerating ? "Đang tạo..." : "Tạo kịch bản AI"}
-            </Button>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-0.5">
+                <Button variant="outline" className="w-full" onClick={() => handleGenerate("draft")}
+                  disabled={isGenerating || !productId}>
+                  {isGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> :
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                  Nháp nhanh
+                </Button>
+                <p className="text-center text-[10px] text-zinc-400">~₫200–500 · Haiku</p>
+              </div>
+              <div className="space-y-0.5">
+                <Button className="w-full" onClick={() => handleGenerate("final")}
+                  disabled={isGenerating || !productId}>
+                  {isGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> :
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                  Chính thức
+                </Button>
+                <p className="text-center text-[10px] text-zinc-400">~₫2k–5k · Sonnet</p>
+              </div>
+            </div>
           </div>
 
           {/* Reference selector panel */}
@@ -576,12 +592,17 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
             )}
 
             {voiceId && sections.length > 0 && (
-              <Button variant="outline" className="w-full" onClick={handleGenerateAllAudio}
-                disabled={generatingAll || !voiceId}>
-                {generatingAll ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> :
-                  <Mic className="h-4 w-4 mr-1.5" />}
-                {generatingAll ? "Đang tạo audio..." : "Tạo audio toàn bộ"}
-              </Button>
+              <div className="space-y-1">
+                <Button variant="outline" className="w-full" onClick={handleGenerateAllAudio}
+                  disabled={generatingAll || !voiceId || status !== "approved"}>
+                  {generatingAll ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> :
+                    <Mic className="h-4 w-4 mr-1.5" />}
+                  {generatingAll ? "Đang tạo audio..." : "Tạo audio toàn bộ"}
+                </Button>
+                {status !== "approved" && (
+                  <p className="text-[10px] text-amber-600 text-center">Duyệt kịch bản trước khi tạo audio · ~₫500–1,500/phần</p>
+                )}
+              </div>
             )}
           </div>
 
@@ -619,12 +640,17 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
               )}
             </div>
             {avatarId && sections.length > 0 && (
-              <Button variant="outline" className="w-full" onClick={handleGenerateAllVideo}
-                disabled={generatingAllVideo || !avatarId}>
-                {generatingAllVideo ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> :
-                  <Video className="h-4 w-4 mr-1.5" />}
-                {generatingAllVideo ? "Đang submit..." : "Tạo video toàn bộ"}
-              </Button>
+              <div className="space-y-1">
+                <Button variant="outline" className="w-full" onClick={handleGenerateAllVideo}
+                  disabled={generatingAllVideo || !avatarId || status !== "approved"}>
+                  {generatingAllVideo ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> :
+                    <Video className="h-4 w-4 mr-1.5" />}
+                  {generatingAllVideo ? "Đang submit..." : "Tạo video toàn bộ"}
+                </Button>
+                {status !== "approved" && (
+                  <p className="text-[10px] text-amber-600 text-center">Duyệt kịch bản trước khi tạo video · ~₫5k–15k/phần</p>
+                )}
+              </div>
             )}
           </div>
 
@@ -646,7 +672,7 @@ export default function ScriptDetailClient({ script: initial, hosts, products, v
           {sections.length === 0 ? (
             <div className="bg-white border border-zinc-200 rounded-lg p-8 text-center text-zinc-400">
               <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Chọn sản phẩm và nhấn &quot;Tạo kịch bản AI&quot;</p>
+              <p className="text-sm">Chọn sản phẩm và nhấn &quot;Nháp nhanh&quot; hoặc &quot;Chính thức&quot;</p>
             </div>
           ) : (
             sections.map((sec, i) => (

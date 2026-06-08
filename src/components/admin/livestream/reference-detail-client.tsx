@@ -261,14 +261,17 @@ export default function ReferenceDetailClient({ reference }: { reference: Refere
         </div>
         <div className="flex gap-2 shrink-0">
           {reference.status === "transcribed" && !reference.insight && (
-            <Button size="sm" onClick={triggerAnalyze} disabled={isAnalyzing}>
-              {isAnalyzing ? (
-                <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
-              ) : (
-                <Zap className="h-4 w-4 mr-1.5" />
-              )}
-              Phân tích AI
-            </Button>
+            <div className="flex flex-col items-end gap-0.5">
+              <Button size="sm" onClick={triggerAnalyze} disabled={isAnalyzing}>
+                {isAnalyzing ? (
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4 mr-1.5" />
+                )}
+                Phân tích AI
+              </Button>
+              <p className="text-[10px] text-zinc-400">~₫500–2,000 · Sonnet</p>
+            </div>
           )}
           {(reference.status === "uploaded" || reference.status === "failed") &&
             reference.source_type !== "text" && (

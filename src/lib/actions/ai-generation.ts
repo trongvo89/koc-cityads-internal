@@ -68,6 +68,7 @@ Trả về JSON (chỉ JSON, không có markdown):
 }
 
 type GenerateScriptParams = {
+  mode?: "draft" | "final";  // draft = Haiku (cheap), final = Sonnet (quality)
   product: {
     name: string;
     description?: string | null;
@@ -169,6 +170,24 @@ CHI TIẾT TỪNG SECTION (bắt buộc thực hiện):
 • Teaser buổi tiếp theo: "Hôm sau mình sẽ live sản phẩm X siêu hot, nhớ bật thông báo nha"
 • CTA nhẹ: "Follow kênh để không miss deal nha ae"`;
 
+// Lightweight prompt for draft (Haiku) — skips heavy context
+function buildDraftPrompt(
+  product: GenerateScriptParams["product"],
+  host: GenerateScriptParams["host"],
+  brief: string,
+  duration_minutes: number,
+  totalSeconds: number
+): string {
+  return `Viết kịch bản TikTok Live bán "${product.name}" dài ${duration_minutes} phút.
+Host: ${host.name}${host.voice_style ? ` (${host.voice_style})` : ""}.
+${product.usp ? `USP: ${product.usp}.` : ""}${product.price_range ? ` Giá: ${product.price_range}.` : ""}
+${brief ? `Brief: ${brief}` : ""}
+
+JSON array (chỉ JSON), tổng duration ~${totalSeconds}s:
+[{"section_type":"intro|hook|product_intro|demo|usp|cta|outro","content":"nội dung tự nhiên tiếng Việt","duration_seconds":60}]
+Yêu cầu: tự nhiên như đang nói, dùng "bạn ơi", "nha", section demo/usp dài nhất, đủ 7-8 sections.`;
+}
+
 export async function generateLiveScript(
   params: GenerateScriptParams
 ): Promise<{ success: true; data: ScriptSection[] } | { success: false; error: string }> {
@@ -177,7 +196,8 @@ export async function generateLiveScript(
   }
   const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const anthropic = new Anthropic();
-  const { product, host, brief, duration_minutes, references, approvedScripts } = params;
+  const { mode = "final", product, host, brief, duration_minutes, references, approvedScripts } = params;
+  const isDraft = mode === "draft";
   const totalSeconds = duration_minutes * 60;
   const hasReferences = references && references.length > 0;
   const timeBudget = sectionTimeBudget(duration_minutes);
@@ -294,12 +314,17 @@ LƯU Ý QUAN TRỌNG:
 - Tổng tất cả duration_seconds phải bằng khoảng ${totalSeconds}
 - ${hasReferences ? "HỌC kỹ thuật từ tư liệu tham khảo nhưng viết nội dung HOÀN TOÀN MỚI cho sản phẩm này" : "Sáng tạo nội dung độc đáo, không generic"}`;
 
+  // Draft mode: Haiku (~10x cheaper), fewer tokens, skip reference context
+  const model = isDraft ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6";
+  const maxTok = isDraft ? 2048 : 4096;
+  const draftSystemPrompt = `Bạn viết kịch bản TikTok Live bán hàng tiếng Việt ngắn gọn, tự nhiên, phù hợp đọc thành tiếng.`;
+
   try {
     const response = await anthropic.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
+      model,
+      max_tokens: maxTok,
+      system: isDraft ? draftSystemPrompt : systemPrompt,
+      messages: [{ role: "user", content: isDraft ? buildDraftPrompt(product, host, brief, duration_minutes, totalSeconds) : userPrompt }],
     });
 
     const text = response.content[0].type === "text" ? response.content[0].text.trim() : "";

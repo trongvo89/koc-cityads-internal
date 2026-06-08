@@ -104,19 +104,11 @@ export async function POST(req: NextRequest) {
 
     if (insertErr) throw new Error(insertErr.message);
 
-    // Update status to transcribed
+    // Update status to transcribed — user manually triggers analysis to control cost
     await supabase
       .from("reference_materials" as any)
       .update({ status: "transcribed", error_message: null })
       .eq("id", reference_id);
-
-    // Auto-trigger analysis
-    const analyzeUrl = new URL("/api/references/analyze", req.url);
-    fetch(analyzeUrl.toString(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reference_id, transcript_id: transcriptRow.id }),
-    }).catch(() => {});
 
     return NextResponse.json({ success: true, transcript_id: transcriptRow.id });
   } catch (err) {
