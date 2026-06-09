@@ -80,6 +80,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
   const [isPending, startTransition] = useTransition();
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [bulkMsg, setBulkMsg] = useState<string | null>(null);
 
   const baseUrl =
@@ -131,7 +132,11 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
     setAddingId(appId);
     startTransition(async () => {
       const result = await addApplicationToCampaign(appId, campaignId);
-      if (!result.success) alert(result.error);
+      if (result.success) {
+        setAddedIds((prev) => new Set([...prev, appId]));
+      } else {
+        alert(result.error);
+      }
       setAddingId(null);
     });
   }
@@ -386,10 +391,10 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                             size="sm"
                             variant="outline"
                             className="h-7 text-xs"
-                            disabled={isPending || addingId === app.id || !app.koc_id}
+                            disabled={isPending || addingId === app.id || !app.koc_id || addedIds.has(app.id)}
                             onClick={() => handleAddOne(app.id)}
                           >
-                            {addingId === app.id ? "..." : "Thêm vào campaign"}
+                            {addingId === app.id ? "..." : addedIds.has(app.id) ? "Đã thêm" : "Thêm vào campaign"}
                           </Button>
                         </td>
                       </tr>

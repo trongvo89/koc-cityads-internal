@@ -184,10 +184,10 @@ export async function addApplicationToCampaign(
 ): Promise<ActionResult> {
   const supabase = await createClient();
 
-  // Fetch the application with koc_id
+  // Fetch the application with koc_id and approval status
   const { data: app, error: appError } = await supabase
     .from("koc_applications" as any)
-    .select("koc_id")
+    .select("koc_id, status")
     .eq("id", applicationId)
     .single();
 
@@ -206,11 +206,16 @@ export async function addApplicationToCampaign(
 
   if (existing) return { success: false, error: "KOC đã có trong campaign" };
 
-  // Add to campaign_kocs
+  const appStatus = (app as any).status as string;
+  const alreadyApproved = appStatus === "approved";
+
+  // Add to campaign_kocs — bypass client approval queue if already approved on /review
   const { error: insertError } = await supabase.from("campaign_kocs").insert({
     campaign_id: campaignId,
     koc_id: kocId,
-  });
+    client_approval_status: alreadyApproved ? "approved" : "pending",
+    operation_status: alreadyApproved ? "waiting_address" : "draft",
+  } as any);
 
   if (insertError) return { success: false, error: insertError.message };
 
@@ -250,9 +255,12 @@ export async function bulkAddApprovedToCampaign(
     return { success: true, data: { added: 0, skipped: kocIds.length } };
   }
 
+  // Bulk-add only processes approved applications → skip client approval queue entirely
   const rows = newKocIds.map((kocId) => ({
     campaign_id: campaignId,
     koc_id: kocId,
+    client_approval_status: "approved" as const,
+    operation_status: "waiting_address" as const,
   }));
 
   const { error: insertError } = await supabase.from("campaign_kocs").insert(rows);
