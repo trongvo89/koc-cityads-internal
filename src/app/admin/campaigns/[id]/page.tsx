@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import KocBoard from "@/components/admin/koc-board";
 import CampaignPaymentPanel from "@/components/admin/campaign-payment-panel";
+import CampaignRegistrationPanel from "@/components/admin/campaign-registration-panel";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Nháp",
@@ -136,6 +137,11 @@ export default async function CampaignDetailPage({
           />
         </div>
       )}
+
+      {/* Registration panel */}
+      <div className="mb-6">
+        <CampaignRegistrationPanel campaignId={id} />
+      </div>
 
       {/* KOC Board */}
       <KocBoard campaign={campaign} allKocs={allKocs} />
