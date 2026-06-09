@@ -16,20 +16,18 @@ import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/types/enums";
 
 const NAV_ITEMS = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/campaigns", label: "Campaigns", icon: Megaphone },
-  { href: "/admin/kocs", label: "KOCs", icon: Users },
-  { href: "/admin/proposals", label: "Proposals", icon: FileText },
-  { href: "/admin/clients", label: "Clients", icon: Building2 },
+  { href: "/admin/dashboard",  label: "Dashboard",    icon: LayoutDashboard },
+  { href: "/admin/campaigns",  label: "Campaigns",    icon: Megaphone },
+  { href: "/admin/kocs",       label: "KOCs",         icon: Users },
+  { href: "/admin/proposals",  label: "Proposals",    icon: FileText },
+  { href: "/admin/clients",    label: "Clients",      icon: Building2 },
   { href: "/admin/livestream", label: "AI Livestream", icon: Radio },
 ];
 
-// Only super_admin sees statistics
 const STATS_ITEMS = [
   { href: "/admin/reports", label: "Thống kê", icon: BarChart3 },
 ];
 
-// super_admin + admin can manage users; operator cannot
 const USERS_ITEMS = [
   { href: "/admin/users", label: "Users", icon: UserCog },
 ];
@@ -53,14 +51,29 @@ export default function SidebarNav({ role }: { role: UserRole }) {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+              "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group",
               isActive
-                ? "bg-zinc-100 text-zinc-900"
-                : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                ? "text-white"
+                : "text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100"
             )}
+            style={isActive ? {
+              background: "linear-gradient(135deg, rgba(255,0,80,0.12) 0%, rgba(121,40,202,0.12) 100%)",
+              border: "1px solid rgba(255,0,80,0.2)",
+            } : undefined}
           >
-            <Icon className="h-4 w-4 flex-shrink-0" />
+            <Icon
+              className={cn(
+                "h-4 w-4 flex-shrink-0 transition-colors",
+                isActive ? "text-[#ff0050]" : "text-zinc-500 group-hover:text-zinc-600"
+              )}
+            />
             {item.label}
+            {isActive && (
+              <span
+                className="absolute right-2.5 h-1.5 w-1.5 rounded-full"
+                style={{ background: "linear-gradient(135deg, #ff0050, #7928ca)" }}
+              />
+            )}
           </Link>
         );
       })}

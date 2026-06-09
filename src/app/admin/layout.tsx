@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import SidebarNav from "@/components/admin/sidebar-nav";
 import SignOutButton from "@/components/admin/sign-out-button";
 import NotificationBell from "@/components/admin/notification-bell";
+import CityAdsLogo from "@/components/ui/cityads-logo";
 import { getAdminNotifications } from "@/lib/actions/notifications";
 import type { UserRole } from "@/lib/types/enums";
 
@@ -33,20 +34,28 @@ export default async function AdminLayout({
   const notifications = await getAdminNotifications();
 
   return (
-    <div className="flex h-screen bg-zinc-50 overflow-hidden">
+    <div className="app-frame flex h-screen overflow-hidden" style={{ background: "#08080f" }}>
       {/* Sidebar */}
-      <aside className="w-60 bg-white border-r border-zinc-200 flex flex-col flex-shrink-0">
-        <div className="px-4 py-4 border-b border-zinc-200 flex items-start justify-between">
-          <div>
-            <h1 className="font-bold text-zinc-900">KOC CityAds</h1>
-            <p className="text-xs text-zinc-400 mt-0.5">Admin Portal</p>
-          </div>
+      <aside
+        className="w-60 flex flex-col flex-shrink-0 border-r"
+        style={{ background: "#0c0c18", borderColor: "#1e1e30" }}
+      >
+        {/* Logo area */}
+        <div
+          className="px-4 py-4 flex items-center justify-between border-b"
+          style={{ borderColor: "#1e1e30" }}
+        >
+          <CityAdsLogo subtitle="Admin Portal" />
           <NotificationBell notifications={notifications} />
         </div>
 
         <SidebarNav role={profile.role} />
 
-        <div className="px-3 py-3 border-t border-zinc-200 mt-auto">
+        {/* User + sign-out */}
+        <div
+          className="px-3 py-3 border-t mt-auto"
+          style={{ borderColor: "#1e1e30" }}
+        >
           <div className="px-2 mb-2">
             <p className="text-sm font-medium text-zinc-900 truncate">
               {profile.full_name}
@@ -59,7 +68,7 @@ export default async function AdminLayout({
         </div>
       </aside>
 
-      {/* Main */}
+      {/* Main content */}
       <main className="flex-1 overflow-auto">
         <div className="p-6 max-w-screen-xl">{children}</div>
       </main>
