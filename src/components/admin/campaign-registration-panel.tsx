@@ -7,8 +7,8 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import RichTextEditor from "@/components/ui/rich-text-editor";
 import {
   getApplicationsByCampaign,
   getCampaignRegistrationData,
@@ -256,22 +256,22 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <Label className="text-xs text-zinc-600">Brief cho KOC (hiển thị trên trang đăng ký)</Label>
-                <Textarea
-                  rows={3}
-                  placeholder="Mô tả sản phẩm, yêu cầu nội dung, hashtag, mention..."
+                <RichTextEditor
+                  campaignId={campaignId}
                   value={brief}
-                  onChange={(e) => { setBrief(e.target.value); setIsDirty(true); }}
-                  className="text-sm resize-none"
+                  onChange={(html) => { setBrief(html); setIsDirty(true); }}
+                  placeholder="Mô tả sản phẩm, yêu cầu nội dung, hashtag, mention..."
+                  minHeight={100}
                 />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs text-zinc-600">Hướng dẫn (cách nhận hàng, thao tác TikTok)</Label>
-                <Textarea
-                  rows={4}
-                  placeholder={"Bước 1: Nhận sản phẩm...\nBước 2: Đăng video TikTok...\nBước 3: Submit link..."}
+                <RichTextEditor
+                  campaignId={campaignId}
                   value={instructions}
-                  onChange={(e) => { setInstructions(e.target.value); setIsDirty(true); }}
-                  className="text-sm resize-none"
+                  onChange={(html) => { setInstructions(html); setIsDirty(true); }}
+                  placeholder={"Bước 1: Nhận sản phẩm...\nBước 2: Đăng video TikTok...\nBước 3: Submit link..."}
+                  minHeight={130}
                 />
               </div>
               {isDirty && (

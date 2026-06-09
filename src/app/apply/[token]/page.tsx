@@ -1,7 +1,39 @@
 import { notFound } from "next/navigation";
+import sanitizeHtml from "sanitize-html";
 import { getCampaignForRegistration } from "@/lib/actions/applications";
 import KocRegistrationForm from "./registration-form";
-import MarkdownContent from "@/components/ui/markdown-content";
+
+const ALLOWED_TAGS = [
+  "p", "br", "strong", "b", "em", "i", "u", "s",
+  "h1", "h2", "h3", "h4",
+  "ul", "ol", "li",
+  "a", "img",
+  "hr", "blockquote",
+];
+
+const ALLOWED_ATTR: sanitizeHtml.IOptions["allowedAttributes"] = {
+  a: ["href", "target", "rel"],
+  img: ["src", "alt", "class"],
+  "*": ["class"],
+};
+
+function SafeHtml({ html }: { html: string }) {
+  // Detect plain text (no HTML tags) → wrap in <p> so it renders nicely
+  const isPlain = !/<[a-z][\s\S]*>/i.test(html);
+  const clean = isPlain
+    ? html
+        .split("\n")
+        .map((l) => (l.trim() ? `<p>${l}</p>` : ""))
+        .join("")
+    : sanitizeHtml(html, { allowedTags: ALLOWED_TAGS, allowedAttributes: ALLOWED_ATTR });
+
+  return (
+    <div
+      className="prose-sm text-zinc-600 [&_a]:text-blue-600 [&_a]:underline [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-2 [&_h2]:font-bold [&_h2]:text-zinc-800 [&_h3]:font-semibold [&_h3]:text-zinc-700 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5"
+      dangerouslySetInnerHTML={{ __html: clean }}
+    />
+  );
+}
 
 export default async function ApplyPage({
   params,
@@ -43,33 +75,27 @@ export default async function ApplyPage({
 
       {/* Main content */}
       <div className="max-w-2xl mx-auto px-4 -mt-6 pb-12">
-        {/* Campaign info */}
         {(campaign.registration_brief || campaign.registration_instructions) && (
           <div className="bg-white rounded-xl border border-zinc-200 p-5 mb-5 space-y-4">
             {campaign.registration_brief && (
               <div>
-                <h2 className="text-sm font-semibold text-zinc-700 mb-1.5">
+                <h2 className="text-sm font-semibold text-zinc-700 mb-2">
                   Thông tin campaign
                 </h2>
-                <div className="text-sm text-zinc-600 leading-relaxed">
-                  <MarkdownContent>{campaign.registration_brief}</MarkdownContent>
-                </div>
+                <SafeHtml html={campaign.registration_brief} />
               </div>
             )}
             {campaign.registration_instructions && (
               <div>
-                <h2 className="text-sm font-semibold text-zinc-700 mb-1.5">
+                <h2 className="text-sm font-semibold text-zinc-700 mb-2">
                   Hướng dẫn tham gia
                 </h2>
-                <div className="text-sm text-zinc-600 leading-relaxed">
-                  <MarkdownContent>{campaign.registration_instructions}</MarkdownContent>
-                </div>
+                <SafeHtml html={campaign.registration_instructions} />
               </div>
             )}
           </div>
         )}
 
-        {/* Registration form or closed message */}
         {campaign.registration_open ? (
           <KocRegistrationForm registrationToken={token} />
         ) : (
