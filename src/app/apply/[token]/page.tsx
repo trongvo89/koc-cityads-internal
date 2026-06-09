@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCampaignForRegistration } from "@/lib/actions/applications";
 import KocRegistrationForm from "./registration-form";
+import MarkdownContent from "@/components/ui/markdown-content";
 
 export default async function ApplyPage({
   params,
@@ -50,9 +51,9 @@ export default async function ApplyPage({
                 <h2 className="text-sm font-semibold text-zinc-700 mb-1.5">
                   Thông tin campaign
                 </h2>
-                <p className="text-sm text-zinc-600 whitespace-pre-line leading-relaxed">
-                  {campaign.registration_brief}
-                </p>
+                <div className="text-sm text-zinc-600 leading-relaxed">
+                  <MarkdownContent>{campaign.registration_brief}</MarkdownContent>
+                </div>
               </div>
             )}
             {campaign.registration_instructions && (
@@ -60,9 +61,9 @@ export default async function ApplyPage({
                 <h2 className="text-sm font-semibold text-zinc-700 mb-1.5">
                   Hướng dẫn tham gia
                 </h2>
-                <p className="text-sm text-zinc-600 whitespace-pre-line leading-relaxed">
-                  {campaign.registration_instructions}
-                </p>
+                <div className="text-sm text-zinc-600 leading-relaxed">
+                  <MarkdownContent>{campaign.registration_instructions}</MarkdownContent>
+                </div>
               </div>
             )}
           </div>
