@@ -30,55 +30,53 @@ export default async function ClientLayout({
     (profile.clients as { company_name: string } | null)?.company_name ?? "";
 
   return (
-    <div className="app-frame flex h-screen overflow-hidden" style={{ background: "#08080f" }}>
-      {/* Sidebar */}
+    <div className="flex h-screen overflow-hidden bg-zinc-50">
+      {/* Sidebar — deep navy */}
       <aside
-        className="w-56 flex flex-col flex-shrink-0 border-r"
-        style={{ background: "#0c0c18", borderColor: "#1e1e30" }}
+        className="w-56 flex flex-col flex-shrink-0"
+        style={{ background: "#0c1a2e", borderRight: "1px solid #162032" }}
       >
-        {/* Logo area */}
-        <div className="px-4 py-4 border-b" style={{ borderColor: "#1e1e30" }}>
-          <CityAdsLogo subtitle={companyName || "Client Portal"} />
+        {/* Logo */}
+        <div className="px-4 py-4" style={{ borderBottom: "1px solid #162032" }}>
+          <CityAdsLogo subtitle={companyName || "Client Portal"} variant="dark" />
         </div>
 
         <nav className="flex-1 p-3">
           <Link
             href="/client/campaigns"
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 transition-all duration-150"
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
+            style={{ color: "#94a3b8" }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.color = "#e2e8f0";
+              (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.color = "#94a3b8";
+              (e.currentTarget as HTMLElement).style.background = "transparent";
+            }}
           >
-            <svg
-              className="h-4 w-4 flex-shrink-0"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.75}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-              />
+            <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
             Campaigns
           </Link>
         </nav>
 
-        <div
-          className="px-3 py-3 border-t mt-auto"
-          style={{ borderColor: "#1e1e30" }}
-        >
+        {/* User footer */}
+        <div className="px-3 py-3 mt-auto" style={{ borderTop: "1px solid #162032" }}>
           <div className="px-2 mb-2">
-            <p className="text-sm font-medium text-zinc-900 truncate">
+            <p className="text-sm font-medium text-slate-200 truncate">
               {profile.full_name}
             </p>
-            <p className="text-xs text-zinc-500">Client</p>
+            <p className="text-xs text-slate-500">Client</p>
           </div>
           <ClientSignOutButton />
         </div>
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-auto bg-zinc-50">
         <div className="p-6 max-w-screen-lg">{children}</div>
       </main>
     </div>

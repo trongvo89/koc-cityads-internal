@@ -11,17 +11,16 @@ type Status      = "pending" | "approved" | "rejected";
 
 // ─── Animated counter ─────────────────────────────────────────────────────────
 
-function useCountUp(target: number, duration = 700) {
+function useCountUp(target: number, duration = 650) {
   const [val, setVal] = useState(0);
   useEffect(() => {
     if (target === 0) return;
     let start: number | undefined;
     const tick = (ts: number) => {
       if (!start) start = ts;
-      const progress = Math.min((ts - start) / duration, 1);
-      const ease = 1 - Math.pow(1 - progress, 3);
-      setVal(Math.round(ease * target));
-      if (progress < 1) requestAnimationFrame(tick);
+      const p = Math.min((ts - start) / duration, 1);
+      setVal(Math.round((1 - Math.pow(1 - p, 3)) * target));
+      if (p < 1) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   }, [target, duration]);
@@ -30,13 +29,13 @@ function useCountUp(target: number, duration = 700) {
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
-function formatFollower(n: number): string {
+function fFollower(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000)     return `${Math.round(n / 1_000)}K`;
   return String(n);
 }
 
-function formatVnd(n: number): string {
+function fVnd(n: number) {
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
   if (n >= 1_000_000)     return `${(n / 1_000_000).toFixed(0)}M`;
   if (n >= 1_000)         return `${(n / 1_000).toFixed(0)}K`;
@@ -76,29 +75,25 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
     });
   }
 
-  const cardBg: React.CSSProperties =
-    status === "approved" ? { background: "rgba(34,197,94,0.04)",  borderColor: "rgba(34,197,94,0.18)"  } :
-    status === "rejected" ? { background: "rgba(239,68,68,0.04)",  borderColor: "rgba(239,68,68,0.18)"  } :
-                            { background: "rgba(255,255,255,0.03)", borderColor: "rgba(255,255,255,0.07)" };
+  /* Top accent bar color */
+  const accentBar =
+    status === "approved" ? "bg-emerald-500" :
+    status === "rejected" ? "bg-red-500"     :
+    "brand-gradient";
 
-  const topBar: React.CSSProperties =
-    status === "approved" ? { background: "linear-gradient(90deg,#22c55e,#16a34a)" } :
-    status === "rejected" ? { background: "linear-gradient(90deg,#ef4444,#dc2626)" } :
-                            { background: "linear-gradient(90deg,#ff0050,#7928ca)"  };
+  /* Card border */
+  const cardBorder =
+    status === "approved" ? "border-emerald-200" :
+    status === "rejected" ? "border-red-200"     :
+    "border-zinc-200";
 
   return (
     <div
-      className="animate-slide-up rounded-2xl border overflow-hidden transition-all duration-300"
-      style={{
-        ...cardBg,
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        animationDelay: `${index * 55}ms`,
-        animationFillMode: "both",
-      }}
+      className={`animate-slide-up bg-white rounded-2xl border ${cardBorder} overflow-hidden shadow-sm hover:shadow-md transition-shadow`}
+      style={{ animationDelay: `${index * 50}ms`, animationFillMode: "both" }}
     >
-      {/* Gradient top accent bar */}
-      <div className="h-0.5" style={topBar} />
+      {/* Accent bar */}
+      <div className={`h-1 w-full ${accentBar}`} />
 
       {/* Content */}
       <div className="px-4 pt-3.5 pb-3">
@@ -109,26 +104,19 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
               href={app.tiktok_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-semibold text-zinc-900 hover:text-white flex items-center gap-1.5 text-sm transition-colors group"
+              className="font-semibold text-zinc-900 hover:text-sky-600 flex items-center gap-1.5 text-sm transition-colors group"
             >
               {app.tiktok_handle}
-              <ExternalLink className="h-3 w-3 text-zinc-500 group-hover:text-zinc-400 flex-shrink-0" />
+              <ExternalLink className="h-3 w-3 text-zinc-400 group-hover:text-sky-500 flex-shrink-0" />
             </a>
-            <p className="text-xs text-zinc-500 mt-0.5">{app.tiktok_name}</p>
+            <p className="text-xs text-zinc-400 mt-0.5">{app.tiktok_name}</p>
           </div>
           {status !== "pending" && (
-            <span
-              className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
-                status === "approved"
-                  ? "text-green-400 border border-green-500/20"
-                  : "text-red-400 border border-red-500/20"
-              }`}
-              style={{
-                background: status === "approved"
-                  ? "rgba(34,197,94,0.1)"
-                  : "rgba(239,68,68,0.1)",
-              }}
-            >
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 border ${
+              status === "approved"
+                ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                : "text-red-600 bg-red-50 border-red-200"
+            }`}>
               {status === "approved" ? "Đã duyệt" : "Từ chối"}
             </span>
           )}
@@ -136,32 +124,19 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
 
         {/* Metrics */}
         <div className="grid grid-cols-2 gap-2">
-          <div
-            className="rounded-xl px-3 py-2.5"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
-          >
-            <p className="text-[10px] text-zinc-500 mb-1 uppercase tracking-wider">Followers</p>
-            <p className="text-sm font-bold text-zinc-900">{formatFollower(animFollower)}</p>
+          <div className="bg-zinc-50 rounded-xl px-3 py-2.5 border border-zinc-100">
+            <p className="text-[10px] text-zinc-400 mb-0.5 uppercase tracking-wider font-medium">Followers</p>
+            <p className="text-sm font-bold text-zinc-800">{fFollower(animFollower)}</p>
           </div>
-          <div
-            className="rounded-xl px-3 py-2.5"
-            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
-          >
-            <p className="text-[10px] text-zinc-500 mb-1 uppercase tracking-wider">GMV 30d</p>
-            <p className="text-sm font-bold text-zinc-900">{formatVnd(animGmv)}đ</p>
+          <div className="bg-zinc-50 rounded-xl px-3 py-2.5 border border-zinc-100">
+            <p className="text-[10px] text-zinc-400 mb-0.5 uppercase tracking-wider font-medium">GMV 30d</p>
+            <p className="text-sm font-bold text-zinc-800">{fVnd(animGmv)}đ</p>
           </div>
         </div>
 
         {/* Style tag */}
         <div className="mt-2.5">
-          <span
-            className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-            style={{
-              background: "linear-gradient(135deg,rgba(255,0,80,0.1),rgba(121,40,202,0.1))",
-              border: "1px solid rgba(255,0,80,0.15)",
-              color: "#c084fc",
-            }}
-          >
+          <span className="text-[10px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
             {STYLE_LABEL[app.video_style] ?? app.video_style}
           </span>
         </div>
@@ -175,24 +150,16 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
             placeholder="Ghi chú (tùy chọn)..."
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            className="text-xs resize-none"
-            style={{
-              background: "rgba(255,255,255,0.04)",
-              border: "1px solid rgba(255,255,255,0.08)",
-              color: "#c2c2e0",
-            }}
+            className="text-xs resize-none bg-zinc-50 border-zinc-200"
           />
         </div>
       )}
 
-      {/* Actions */}
-      <div
-        className="px-4 py-2.5 flex items-center justify-between gap-2 border-t"
-        style={{ borderColor: "rgba(255,255,255,0.06)" }}
-      >
+      {/* Action bar */}
+      <div className="px-4 py-2.5 flex items-center justify-between gap-2 border-t border-zinc-100 bg-zinc-50/50">
         <button
           onClick={() => setShowComment((v) => !v)}
-          className="text-xs text-zinc-500 hover:text-zinc-400 flex items-center gap-1 transition-colors"
+          className="text-xs text-zinc-400 hover:text-zinc-600 flex items-center gap-1 transition-colors"
         >
           <MessageSquare className="h-3 w-3" />
           {showComment ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
@@ -202,12 +169,11 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
           <button
             disabled={isPending}
             onClick={() => handleReview("rejected")}
-            className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1 transition-all duration-150 disabled:opacity-50 ${
+            className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1 transition-all disabled:opacity-50 border ${
               status === "rejected"
-                ? "text-red-400 border border-red-500/30"
-                : "text-zinc-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent"
+                ? "bg-red-600 text-white border-red-600"
+                : "text-zinc-600 border-zinc-200 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
             }`}
-            style={status === "rejected" ? { background: "rgba(239,68,68,0.12)" } : undefined}
           >
             <X className="h-3 w-3" />
             Từ chối
@@ -215,12 +181,11 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
           <button
             disabled={isPending}
             onClick={() => handleReview("approved")}
-            className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1 transition-all duration-150 disabled:opacity-50 ${
+            className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1 transition-all disabled:opacity-50 border ${
               status === "approved"
-                ? "text-green-400 border border-green-500/30"
-                : "text-zinc-500 hover:text-green-400 hover:bg-green-500/10 border border-transparent"
+                ? "bg-emerald-600 text-white border-emerald-600"
+                : "text-zinc-600 border-zinc-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
             }`}
-            style={status === "approved" ? { background: "rgba(34,197,94,0.12)" } : undefined}
           >
             <Check className="h-3 w-3" />
             Duyệt
@@ -228,7 +193,7 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
         </div>
       </div>
 
-      <p className="text-[10px] text-zinc-500 text-right px-4 pb-2.5">
+      <p className="text-[10px] text-zinc-300 text-right px-4 pb-2.5">
         {new Date(app.applied_at).toLocaleDateString("vi-VN")}
       </p>
     </div>
@@ -257,46 +222,36 @@ export default function ApplicationReviewClient({ reviewToken, initialApplicatio
   const pct         = Math.min((approved / Math.max(packageSize, 1)) * 100, 100);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 -mt-8 pb-16">
-      {/* Progress summary */}
+    <div className="max-w-5xl mx-auto px-4 -mt-6 pb-12">
+      {/* Progress bar */}
       {apps.length > 0 && (
-        <div
-          className="rounded-2xl p-4 mb-6"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.07)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
-            <span className="text-xs font-medium text-zinc-600">
+        <div className="bg-white rounded-2xl border border-zinc-200 p-4 mb-6 shadow-sm">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <span className="text-xs font-semibold text-zinc-700">
               {approved}/{packageSize} KOC đã duyệt
             </span>
-            <div className="flex gap-4 text-xs">
-              <span className="text-green-400 font-semibold">{approved} duyệt</span>
-              <span className="text-red-400 font-semibold">
+            <div className="flex gap-3 text-xs">
+              <span className="text-emerald-600 font-semibold">{approved} duyệt</span>
+              <span className="text-red-500 font-semibold">
                 {apps.filter((a) => a.status === "rejected").length} từ chối
               </span>
-              <span className="text-zinc-500">
+              <span className="text-zinc-400">
                 {apps.filter((a) => a.status === "pending").length} chờ
               </span>
             </div>
           </div>
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+          <div className="h-2 bg-zinc-100 rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${pct}%`, background: "linear-gradient(90deg,#ff0050,#7928ca)" }}
+              className="h-full rounded-full transition-all duration-500 brand-gradient"
+              style={{ width: `${pct}%` }}
             />
           </div>
         </div>
       )}
 
       {apps.length === 0 ? (
-        <div
-          className="rounded-2xl p-12 text-center"
-          style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
-        >
-          <p className="text-zinc-500 text-sm">Chưa có KOC nào đăng ký.</p>
+        <div className="bg-white rounded-2xl border border-zinc-200 p-10 text-center shadow-sm">
+          <p className="text-zinc-400 text-sm">Chưa có KOC nào đăng ký.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger">

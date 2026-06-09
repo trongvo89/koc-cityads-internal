@@ -49,42 +49,23 @@ export default async function ApplyPage({
   const campaign = result.data;
 
   return (
-    <div className="min-h-screen" style={{ background: "#08080f" }}>
-      {/* Hero */}
-      <div
-        className="relative overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #0f0520 0%, #08080f 50%, #1a0510 100%)" }}
-      >
-        {/* Gradient orbs */}
-        <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full opacity-20 blur-3xl pointer-events-none"
-          style={{ background: "radial-gradient(circle, #7928ca, transparent)" }} />
-        <div className="absolute top-0 right-0 w-72 h-72 rounded-full opacity-15 blur-3xl pointer-events-none"
-          style={{ background: "radial-gradient(circle, #ff0050, transparent)" }} />
-
-        <div className="relative max-w-2xl mx-auto px-4 pt-6 pb-16">
-          <div className="mb-10">
-            <CityAdsLogo subtitle="KOC Platform" />
+    <div className="min-h-screen bg-zinc-50">
+      {/* Hero — CityAds navy-to-blue */}
+      <div style={{ background: "linear-gradient(135deg, #0c1a2e 0%, #0369a1 100%)" }}>
+        <div className="max-w-2xl mx-auto px-4 pt-6 pb-16">
+          <div className="mb-8">
+            <CityAdsLogo subtitle="KOC Platform" variant="dark" />
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 leading-tight">
             {campaign.campaign_name}
           </h1>
-          <p className="text-white/40 text-sm">
+          <p className="text-sky-200/70 text-sm">
             Đăng ký tham gia campaign
             {campaign.application_count > 0 && (
-              <>
-                &nbsp;·&nbsp;
-                <span
-                  className="px-2 py-0.5 rounded-full text-xs"
-                  style={{
-                    background: "linear-gradient(135deg,rgba(255,0,80,0.12),rgba(121,40,202,0.12))",
-                    border: "1px solid rgba(255,0,80,0.2)",
-                    color: "#c084fc",
-                  }}
-                >
-                  {campaign.application_count} KOC đã đăng ký
-                </span>
-              </>
+              <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-white/15 text-white/80">
+                {campaign.application_count} KOC đã đăng ký
+              </span>
             )}
           </p>
         </div>
@@ -93,14 +74,7 @@ export default async function ApplyPage({
       {/* Main content */}
       <div className="max-w-2xl mx-auto px-4 -mt-6 pb-12">
         {(campaign.registration_brief || campaign.registration_instructions) && (
-          <div
-            className="rounded-2xl p-5 mb-5 space-y-4"
-            style={{
-              background: "rgba(255,255,255,0.03)",
-              border: "1px solid rgba(255,255,255,0.07)",
-              backdropFilter: "blur(20px)",
-            }}
-          >
+          <div className="bg-white rounded-2xl border border-zinc-200 p-5 mb-5 space-y-4 shadow-sm">
             {campaign.registration_brief && (
               <div>
                 <h2 className="text-sm font-semibold text-zinc-700 mb-2">Thông tin campaign</h2>
@@ -119,18 +93,15 @@ export default async function ApplyPage({
         {campaign.registration_open ? (
           <KocRegistrationForm registrationToken={token} />
         ) : (
-          <div
-            className="rounded-2xl p-6 text-center"
-            style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}
-          >
+          <div className="bg-white rounded-2xl border border-zinc-200 p-6 text-center shadow-sm">
             <p className="text-zinc-500 text-sm">Đăng ký cho campaign này đã đóng.</p>
           </div>
         )}
       </div>
 
-      <footer className="py-8 text-center border-t" style={{ borderColor: "#1e1e30" }}>
-        <div className="flex items-center justify-center gap-2">
-          <CityAdsLogo subtitle="Powered by CityAds Vietnam" />
+      <footer className="py-6 text-center text-xs text-zinc-400 border-t border-zinc-200">
+        <div className="flex items-center justify-center">
+          <CityAdsLogo size={20} subtitle="Powered by CityAds Vietnam" variant="light" />
         </div>
       </footer>
     </div>

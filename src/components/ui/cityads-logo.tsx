@@ -1,13 +1,17 @@
 interface Props {
   size?: number;
-  showText?: boolean;
   subtitle?: string;
+  /** "light" = use on white/gray backgrounds; "dark" = use on navy/blue backgrounds */
+  variant?: "light" | "dark";
 }
 
-export default function CityAdsLogo({ size = 28, showText = true, subtitle }: Props) {
-  const id = `grad-${size}`;
+export default function CityAdsLogo({ size = 28, subtitle, variant = "dark" }: Props) {
+  const textColor  = variant === "dark" ? "#ffffff" : "#0f172a";
+  const subColor   = variant === "dark" ? "#64748b" : "#64748b";
+  const id = `ca-grad-${size}-${variant}`;
+
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2.5 select-none">
       <svg
         width={size}
         height={size}
@@ -18,28 +22,26 @@ export default function CityAdsLogo({ size = 28, showText = true, subtitle }: Pr
       >
         <defs>
           <linearGradient id={id} x1="14" y1="28" x2="14" y2="0" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#7928ca" />
-            <stop offset="100%" stopColor="#ff0050" />
+            <stop offset="0%"   stopColor="#0369a1" />
+            <stop offset="100%" stopColor="#38bdf8" />
           </linearGradient>
         </defs>
-        {/* Three ascending bars */}
+        {/* Three ascending bars — matches CityAds logo style */}
         <rect x="1"  y="17" width="6" height="9"  rx="1.5" fill={`url(#${id})`} opacity="0.55" />
         <rect x="11" y="10" width="6" height="16" rx="1.5" fill={`url(#${id})`} opacity="0.78" />
         <rect x="21" y="3"  width="6" height="23" rx="1.5" fill={`url(#${id})`} />
       </svg>
 
-      {showText && (
-        <div className="leading-none">
-          <p className="text-sm font-bold text-white tracking-tight">
-            city<span className="gradient-text">ads</span>
+      <div className="leading-none">
+        <p className="text-sm font-bold tracking-tight" style={{ color: textColor }}>
+          city<span className="brand-text">ads</span>
+        </p>
+        {subtitle && (
+          <p className="text-[9px] mt-0.5 uppercase tracking-widest" style={{ color: subColor }}>
+            {subtitle}
           </p>
-          {subtitle && (
-            <p className="text-[9px] text-zinc-500 mt-0.5 uppercase tracking-widest">
-              {subtitle}
-            </p>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
