@@ -42,7 +42,7 @@ function KocCard({ app, reviewToken, onStatusChange }: KocCardProps) {
   const [note, setNote] = useState(app.review_note ?? "");
   const [isPending, startTransition] = useTransition();
 
-  function handleReview(newStatus: Status) {
+  function handleReview(newStatus: "approved" | "rejected") {
     startTransition(async () => {
       const result = await submitApplicationReview(
         reviewToken,

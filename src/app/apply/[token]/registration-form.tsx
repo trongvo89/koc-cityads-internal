@@ -18,15 +18,15 @@ const schema = z.object({
     .min(1, "Vui lòng nhập link kênh TikTok")
     .url("Link không hợp lệ, vui lòng nhập đúng dạng https://..."),
   follower_count: z
-    .number({ invalid_type_error: "Vui lòng nhập số" })
+    .number()
     .int()
     .min(0, "Số follower không hợp lệ"),
   gmv_30d: z
-    .number({ invalid_type_error: "Vui lòng nhập số" })
+    .number()
     .min(0, "GMV không hợp lệ"),
   zalo_phone: z.string().min(6, "Vui lòng nhập SĐT Zalo"),
-  video_style: z.enum(["show_face_voice", "ugc_style"], {
-    required_error: "Vui lòng chọn phong cách",
+  video_style: z.enum(["show_face_voice", "ugc_style"] as const, {
+    message: "Vui lòng chọn phong cách",
   }),
 });
 

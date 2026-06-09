@@ -50,7 +50,8 @@ export async function getCampaignForRegistration(
   token: string
 ): Promise<ActionResult<PublicCampaignInfo>> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc(
     "get_campaign_by_registration_token",
     { p_token: token }
   );
@@ -74,7 +75,8 @@ export async function submitApplication(
   }
 ): Promise<ActionResult> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("submit_koc_application", {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc("submit_koc_application", {
     p_token: token,
     p_handle: formData.tiktok_handle,
     p_name: formData.tiktok_name,
@@ -125,7 +127,8 @@ export async function getApplicationsForReview(
   reviewToken: string
 ): Promise<ActionResult<PublicReviewData>> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc(
     "get_applications_by_review_token",
     { p_token: reviewToken }
   );
@@ -143,7 +146,8 @@ export async function submitApplicationReview(
   note?: string
 ): Promise<ActionResult> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("submit_application_review", {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc("submit_application_review", {
     p_review_token: reviewToken,
     p_application_id: applicationId,
     p_status: status,
