@@ -115,7 +115,6 @@ export type PublicReviewData = {
     tiktok_url: string;
     follower_count: number;
     gmv_30d: number;
-    zalo_phone: string;
     video_style: string;
     status: "pending" | "approved" | "rejected";
     review_note: string | null;

@@ -113,7 +113,6 @@ function KocCard({ app, reviewToken, onStatusChange }: KocCardProps) {
           <span className="text-xs bg-zinc-100 text-zinc-600 px-2 py-0.5 rounded-full">
             {STYLE_LABEL[app.video_style] ?? app.video_style}
           </span>
-          <span className="text-xs text-zinc-400">Zalo: {app.zalo_phone}</span>
         </div>
       </div>
 
