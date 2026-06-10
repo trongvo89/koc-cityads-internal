@@ -183,19 +183,41 @@ export async function getReferenceDetail(id: string): Promise<ActionResult<Refer
   return { success: true, data: detail };
 }
 
-// ─── Create (file upload) ──────────────────────────────────────────────────────
+// ─── Create (file upload) — two-step signed URL approach ──────────────────────
+//
+// Step 1 (client calls prepareReferenceUpload): generate a signed upload URL.
+//   The client uploads the file DIRECTLY to Supabase Storage using this URL,
+//   bypassing the Next.js server action body size limit entirely.
+//
+// Step 2 (client calls confirmReferenceUpload): create the DB record now that
+//   the file is already in storage.
 
-export async function createReferenceFromFile(
+export async function prepareReferenceUpload(
+  filename: string,
+  mimeType: string
+): Promise<ActionResult<{ signedUrl: string; storagePath: string }>> {
+  const serviceClient = await createServiceClient();
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "bin";
+  const storagePath = `references/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+  const { data, error } = await (serviceClient.storage as any)
+    .from("live-video")
+    .createSignedUploadUrl(storagePath);
+
+  if (error) return { success: false, error: `Không thể tạo upload URL: ${error.message}` };
+
+  return { success: true, data: { signedUrl: data.signedUrl as string, storagePath } };
+}
+
+export async function confirmReferenceUpload(
+  storagePath: string,
+  filename: string,
+  fileSize: number,
+  mimeType: string,
   formData: FormData
 ): Promise<ActionResult<{ id: string }>> {
   const title = (formData.get("title") as string)?.trim();
   if (!title) return { success: false, error: "Tiêu đề không được để trống" };
-
-  const file = formData.get("file") as File | null;
-  if (!file || file.size === 0) return { success: false, error: "Vui lòng chọn file" };
-
-  const maxSize = 500 * 1024 * 1024; // 500MB
-  if (file.size > maxSize) return { success: false, error: "File không được lớn hơn 500MB" };
 
   const knowledge_type = (formData.get("knowledge_type") as ReferenceKnowledgeType) || "koc_insight";
   const source_platform = (formData.get("source_platform") as string) || null;
@@ -205,21 +227,8 @@ export async function createReferenceFromFile(
   const tagsRaw = (formData.get("tags") as string)?.trim() || "";
   const tags = tagsRaw ? tagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : null;
 
-  const mime = file.type;
-  const source_type: "video" | "audio" | "text" =
-    mime.startsWith("video/") ? "video" :
-    mime.startsWith("audio/") ? "audio" : "video";
-
-  const serviceClient = await createServiceClient();
-  const ext = file.name.split(".").pop() ?? "bin";
-  const storagePath = `references/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-
-  const buffer = await file.arrayBuffer();
-  const { error: uploadErr } = await serviceClient.storage
-    .from("live-video")
-    .upload(storagePath, buffer, { contentType: mime, upsert: false });
-
-  if (uploadErr) return { success: false, error: `Upload lỗi: ${uploadErr.message}` };
+  const source_type: "video" | "audio" =
+    mimeType.startsWith("video/") ? "video" : "audio";
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -232,8 +241,8 @@ export async function createReferenceFromFile(
       source_type,
       source_platform: source_platform || null,
       storage_path: storagePath,
-      original_filename: file.name,
-      file_size_bytes: file.size,
+      original_filename: filename,
+      file_size_bytes: fileSize,
       category,
       product_id: product_id || null,
       campaign_id: campaign_id || null,
