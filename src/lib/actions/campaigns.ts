@@ -140,7 +140,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: kocs, error: ke } = await supabase
     .from("campaign_kocs")
     .select(
-      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, client_video_feedback, client_video_feedback_at, client_quality_rating, video_count, final_link, note_2, kocs(name, category, phone, zalo, tiktok_url, follower)"
+      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, client_video_feedback, client_video_feedback_at, client_quality_rating, video_count, final_link, note_2, kocs(name, category, phone, zalo, tiktok_handle, tiktok_url, follower)"
     )
     .eq("campaign_id", id)
     .order("created_at", { ascending: true });
@@ -168,7 +168,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
       start_date: campaign.start_date,
       end_date: campaign.end_date,
       kocs: (kocs ?? []).map((k) => {
-        const kocData = k.kocs as { name: string; category: string[] | null; phone: string | null; zalo: string | null; tiktok_url: string | null; follower: number | null } | null;
+        const kocData = k.kocs as { name: string; category: string[] | null; phone: string | null; zalo: string | null; tiktok_handle: string | null; tiktok_url: string | null; follower: number | null } | null;
         return {
         campaign_koc_id: k.campaign_koc_id,
         koc_id: k.koc_id,
@@ -176,7 +176,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
         koc_category: kocData?.category ?? null,
         koc_phone: kocData?.phone ?? null,
         koc_zalo: kocData?.zalo ?? null,
-        koc_tiktok_handle: null,
+        koc_tiktok_handle: kocData?.tiktok_handle ?? null,
         koc_tiktok_url: kocData?.tiktok_url ?? null,
         koc_follower: kocData?.follower ?? null,
         operation_status: k.operation_status,
@@ -594,5 +594,38 @@ export async function clearPaymentDate(
   revalidatePath("/admin/campaigns");
   revalidatePath(`/admin/campaigns/${campaignId}`);
   revalidatePath("/admin/reports");
+  return { success: true, data: undefined };
+}
+
+// ─── Update KOC Profile (master data) ───────────────────────────────────────
+
+export async function updateKocProfile(
+  kocId: string,
+  campaignId: string,
+  data: {
+    name: string;
+    tiktok_handle: string | null;
+    tiktok_url: string | null;
+    follower: number | null;
+    phone: string | null;
+    zalo: string | null;
+  }
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("kocs")
+    .update({
+      name: data.name,
+      tiktok_handle: data.tiktok_handle || null,
+      tiktok_url: data.tiktok_url || null,
+      follower: data.follower,
+      phone: data.phone || null,
+      zalo: data.zalo || null,
+    })
+    .eq("koc_id", kocId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
   return { success: true, data: undefined };
 }

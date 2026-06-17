@@ -833,6 +833,7 @@ export type Database = {
           note: string | null
           phone: string | null
           status: Database["public"]["Enums"]["koc_status"]
+          tiktok_handle: string | null
           tiktok_url: string | null
           updated_at: string
           zalo: string | null
@@ -852,6 +853,7 @@ export type Database = {
           note?: string | null
           phone?: string | null
           status?: Database["public"]["Enums"]["koc_status"]
+          tiktok_handle?: string | null
           tiktok_url?: string | null
           updated_at?: string
           zalo?: string | null
@@ -871,6 +873,7 @@ export type Database = {
           note?: string | null
           phone?: string | null
           status?: Database["public"]["Enums"]["koc_status"]
+          tiktok_handle?: string | null
           tiktok_url?: string | null
           updated_at?: string
           zalo?: string | null

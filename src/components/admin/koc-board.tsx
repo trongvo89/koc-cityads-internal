@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import {
   Plus, Trash2, ExternalLink, RefreshCw,
   Search, Send, Copy, Check, CheckCheck,
+  Pencil, ArrowUp, ArrowDown, Filter, X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import {
   removeKocFromCampaign,
   updateCampaignKocStatus,
   updateCampaignKocField,
+  updateKocProfile,
   renewMagicLink,
   markAsReminded,
 } from "@/lib/actions/campaigns";
@@ -87,6 +89,170 @@ function getSimple(s: string): SimpleStatus {
   return SIMPLE_MAP[s] ?? "in_progress";
 }
 
+function statusLabel(s: SimpleStatus): string {
+  return STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s;
+}
+
+// ─── Column filter popover ──────────────────────────────────────────────────
+
+type ColumnFilterValue =
+  | { type: "text"; search: string }
+  | { type: "set"; selected: Set<string> };
+
+function ColumnFilterPopover({
+  values,
+  current,
+  onApply,
+  onClear,
+}: {
+  values: string[];
+  current: ColumnFilterValue | null;
+  onApply: (f: ColumnFilterValue) => void;
+  onClear: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [localSearch, setLocalSearch] = useState("");
+  const [localSet, setLocalSet] = useState<Set<string>>(new Set());
+  const isSet = values.length <= 20;
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (current?.type === "text") setLocalSearch(current.search);
+    else setLocalSearch("");
+    if (current?.type === "set") setLocalSet(new Set(current.selected));
+    else setLocalSet(new Set(values));
+  }, [open, current, values]);
+
+  const isActive = current != null;
+
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className={`ml-1 p-0.5 rounded transition-colors ${isActive ? "text-blue-600" : "text-zinc-300 hover:text-zinc-500"}`}
+        title="Lọc cột"
+      >
+        <Filter className="h-3 w-3" />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-5 z-50 bg-white border border-zinc-200 rounded-lg shadow-lg p-2.5 w-52 text-xs">
+          {isSet ? (
+            <>
+              <div className="flex items-center justify-between mb-1.5">
+                <button
+                  type="button"
+                  className="text-blue-600 hover:underline"
+                  onClick={() => setLocalSet(new Set(values))}
+                >Chọn tất cả</button>
+                <button
+                  type="button"
+                  className="text-blue-600 hover:underline"
+                  onClick={() => setLocalSet(new Set())}
+                >Bỏ chọn</button>
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-0.5">
+                {values.map((v) => (
+                  <label key={v} className="flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-zinc-50 rounded px-1">
+                    <input
+                      type="checkbox"
+                      checked={localSet.has(v)}
+                      onChange={() => {
+                        const next = new Set(localSet);
+                        next.has(v) ? next.delete(v) : next.add(v);
+                        setLocalSet(next);
+                      }}
+                      className="h-3 w-3 rounded border-zinc-300"
+                    />
+                    <span className="truncate">{v || "(trống)"}</span>
+                  </label>
+                ))}
+              </div>
+            </>
+          ) : (
+            <input
+              autoFocus
+              type="text"
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              placeholder="Tìm kiếm..."
+              className="w-full border border-zinc-200 rounded px-2 py-1.5 text-xs outline-none focus:ring-1 focus:ring-blue-300"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  onApply({ type: "text", search: localSearch });
+                  setOpen(false);
+                }
+              }}
+            />
+          )}
+          <div className="flex gap-1.5 mt-2">
+            <button
+              type="button"
+              className="flex-1 px-2 py-1 rounded bg-zinc-800 text-white hover:bg-zinc-700"
+              onClick={() => {
+                if (isSet) {
+                  if (localSet.size === values.length) onClear();
+                  else onApply({ type: "set", selected: localSet });
+                } else {
+                  if (!localSearch) onClear();
+                  else onApply({ type: "text", search: localSearch });
+                }
+                setOpen(false);
+              }}
+            >Áp dụng</button>
+            <button
+              type="button"
+              className="flex-1 px-2 py-1 rounded border border-zinc-200 hover:bg-zinc-50"
+              onClick={() => { onClear(); setOpen(false); }}
+            >Xoá lọc</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Sortable header ────────────────────────────────────────────────────────
+
+type SortDir = "asc" | "desc" | null;
+
+function SortableHeader({
+  label,
+  sortDir,
+  onSort,
+  className,
+  children,
+}: {
+  label: string;
+  sortDir: SortDir;
+  onSort: () => void;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  return (
+    <th className={`px-2 py-2 text-left font-medium text-zinc-500 ${className ?? ""}`}>
+      <div className="flex items-center">
+        <button type="button" onClick={onSort} className="flex items-center gap-0.5 hover:text-zinc-800 transition-colors">
+          {label}
+          {sortDir === "asc" && <ArrowUp className="h-3 w-3 text-blue-500" />}
+          {sortDir === "desc" && <ArrowDown className="h-3 w-3 text-blue-500" />}
+          {!sortDir && <ArrowUp className="h-3 w-3 opacity-0 group-hover:opacity-30" />}
+        </button>
+        {children}
+      </div>
+    </th>
+  );
+}
+
 // ─── Inline editable cell ────────────────────────────────────────────────────
 
 function EditableCell({
@@ -135,6 +301,108 @@ function EditableCell({
       placeholder={placeholder}
       className={`w-full bg-transparent border-0 border-b border-transparent hover:border-zinc-300 focus:border-zinc-400 focus:outline-none text-xs px-1 py-1 transition-colors ${isPending ? "opacity-50" : ""} ${className ?? ""}`}
     />
+  );
+}
+
+// ─── Edit KOC Dialog ─────────────────────────────────────────────────────────
+
+function EditKocDialog({
+  koc,
+  campaignId,
+  onClose,
+}: {
+  koc: CampaignKocRow | null;
+  campaignId: string;
+  onClose: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [name, setName] = useState("");
+  const [handle, setHandle] = useState("");
+  const [url, setUrl] = useState("");
+  const [follower, setFollower] = useState("");
+  const [phone, setPhone] = useState("");
+  const [zalo, setZalo] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!koc) return;
+    setName(koc.koc_name ?? "");
+    setHandle(koc.koc_tiktok_handle ?? "");
+    setUrl(koc.koc_tiktok_url ?? "");
+    setFollower(koc.koc_follower != null ? String(koc.koc_follower) : "");
+    setPhone(koc.koc_phone ?? "");
+    setZalo(koc.koc_zalo ?? "");
+    setErr(null);
+  }, [koc]);
+
+  function handleSave() {
+    if (!koc) return;
+    if (!name.trim()) { setErr("Tên không được để trống"); return; }
+    setErr(null);
+    startTransition(async () => {
+      const result = await updateKocProfile(koc.koc_id, campaignId, {
+        name: name.trim(),
+        tiktok_handle: handle.trim() || null,
+        tiktok_url: url.trim() || null,
+        follower: follower ? Number(follower) : null,
+        phone: phone.trim() || null,
+        zalo: zalo.trim() || null,
+      });
+      if (result.success) onClose();
+      else setErr(result.error);
+    });
+  }
+
+  if (!koc) return null;
+
+  return (
+    <Dialog open={!!koc} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-zinc-500" />
+            Chỉnh sửa KOC
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Tên KOC <span className="text-red-500">*</span></Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">TikTok Handle</Label>
+              <Input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@handle" className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Followers</Label>
+              <Input type="number" value={follower} onChange={(e) => setFollower(e.target.value)} placeholder="10000" className="h-9 text-sm" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">TikTok URL</Label>
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://tiktok.com/@..." className="h-9 text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">SĐT</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0901234567" className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Zalo</Label>
+              <Input value={zalo} onChange={(e) => setZalo(e.target.value)} placeholder="0901234567" className="h-9 text-sm" />
+            </div>
+          </div>
+          {err && <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1.5">{err}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>Hủy</Button>
+          <Button onClick={handleSave} disabled={isPending}>
+            {isPending ? "Đang lưu..." : "Lưu thay đổi"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -385,7 +653,31 @@ function AddKocsDialog({
   );
 }
 
+// ─── Filter row input (Google Sheets style) ─────────────────────────────────
+
+function FilterInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder ?? "Lọc..."}
+      className="w-full bg-white border border-zinc-200 rounded text-[11px] px-1.5 py-1 outline-none focus:ring-1 focus:ring-blue-300 focus:border-blue-300 placeholder:text-zinc-300"
+    />
+  );
+}
+
 // ─── Main KocBoard ───────────────────────────────────────────────────────────
+
+type SortKey = "account" | "follower" | "status" | "client" | "video" | "video_count" | "note" | "note2" | null;
 
 export default function KocBoard({
   campaign,
@@ -395,10 +687,38 @@ export default function KocBoard({
   allKocs: KocItem[];
 }) {
   const [addOpen, setAddOpen] = useState(false);
-  const [filter, setFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [sendLinkTarget, setSendLinkTarget] = useState<CampaignKocRow | null>(null);
+  const [editTarget, setEditTarget] = useState<CampaignKocRow | null>(null);
+  const [showFilterRow, setShowFilterRow] = useState(false);
+
+  // Filter row values
+  const [fAccount, setFAccount] = useState("");
+  const [fFollowerMin, setFFollowerMin] = useState("");
+  const [fFollowerMax, setFFollowerMax] = useState("");
+  const [fClient, setFClient] = useState<Set<string> | null>(null);
+  const [fVideo, setFVideo] = useState<string>("all"); // "all" | "yes" | "no"
+  const [fVideoCount, setFVideoCount] = useState("");
+  const [fNote, setFNote] = useState("");
+  const [fNote2, setFNote2] = useState("");
+  const [fLinkFinal, setFLinkFinal] = useState("");
+
+  // Sort
+  const [sortKey, setSortKey] = useState<SortKey>(null);
+  const [sortDir, setSortDir] = useState<SortDir>(null);
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      if (sortDir === "asc") setSortDir("desc");
+      else if (sortDir === "desc") { setSortKey(null); setSortDir(null); }
+      else setSortDir("asc");
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
 
   const assignedKocIds = new Set(campaign.kocs.map((k) => k.koc_id));
   const availableKocs = allKocs.filter((k) => !assignedKocIds.has(k.koc_id));
@@ -406,13 +726,93 @@ export default function KocBoard({
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { all: campaign.kocs.length };
     for (const s of STATUS_OPTIONS) counts[s.value] = 0;
-    for (const k of campaign.kocs) counts[getSimple(k.operation_status)] = (counts[getSimple(k.operation_status)] || 0) + 1;
+    for (const k of campaign.kocs) {
+      const simple = getSimple(k.operation_status);
+      counts[simple] = (counts[simple] || 0) + 1;
+    }
     return counts;
   }, [campaign.kocs]);
 
-  const filteredKocs = filter === "all"
-    ? campaign.kocs
-    : campaign.kocs.filter((k) => getSimple(k.operation_status) === filter);
+  // Unique values for column filters
+  const clientValues = useMemo(() => {
+    const set = new Set<string>();
+    for (const k of campaign.kocs) set.add(k.client_approval_status);
+    return Array.from(set);
+  }, [campaign.kocs]);
+
+  const hasActiveFilters = fAccount || fFollowerMin || fFollowerMax || fClient || fVideo !== "all" || fVideoCount || fNote || fNote2 || fLinkFinal;
+
+  // Apply all filters + sort
+  const processedKocs = useMemo(() => {
+    let list = campaign.kocs;
+
+    // Status tab filter
+    if (statusFilter !== "all") {
+      list = list.filter((k) => getSimple(k.operation_status) === statusFilter);
+    }
+
+    // Filter row filters
+    if (fAccount) {
+      const q = fAccount.toLowerCase();
+      list = list.filter((k) =>
+        (k.koc_name?.toLowerCase().includes(q)) ||
+        (k.koc_tiktok_handle?.toLowerCase().includes(q))
+      );
+    }
+    if (fFollowerMin) {
+      const min = Number(fFollowerMin);
+      if (!isNaN(min)) list = list.filter((k) => (k.koc_follower ?? 0) >= min);
+    }
+    if (fFollowerMax) {
+      const max = Number(fFollowerMax);
+      if (!isNaN(max)) list = list.filter((k) => (k.koc_follower ?? 0) <= max);
+    }
+    if (fClient) {
+      list = list.filter((k) => fClient.has(k.client_approval_status));
+    }
+    if (fVideo === "yes") list = list.filter((k) => !!k.video_url);
+    if (fVideo === "no") list = list.filter((k) => !k.video_url);
+    if (fVideoCount) {
+      const n = Number(fVideoCount);
+      if (!isNaN(n)) list = list.filter((k) => k.video_count >= n);
+    }
+    if (fNote) {
+      const q = fNote.toLowerCase();
+      list = list.filter((k) => (k.internal_note?.toLowerCase().includes(q)));
+    }
+    if (fNote2) {
+      const q = fNote2.toLowerCase();
+      list = list.filter((k) => (k.note_2?.toLowerCase().includes(q)));
+    }
+    if (fLinkFinal) {
+      const q = fLinkFinal.toLowerCase();
+      list = list.filter((k) => (k.final_link?.toLowerCase().includes(q)));
+    }
+
+    // Sort
+    if (sortKey && sortDir) {
+      const dir = sortDir === "asc" ? 1 : -1;
+      list = [...list].sort((a, b) => {
+        let va: string | number = 0;
+        let vb: string | number = 0;
+        switch (sortKey) {
+          case "account": va = (a.koc_tiktok_handle || a.koc_name).toLowerCase(); vb = (b.koc_tiktok_handle || b.koc_name).toLowerCase(); break;
+          case "follower": va = a.koc_follower ?? 0; vb = b.koc_follower ?? 0; break;
+          case "status": va = statusLabel(getSimple(a.operation_status)); vb = statusLabel(getSimple(b.operation_status)); break;
+          case "client": va = a.client_approval_status; vb = b.client_approval_status; break;
+          case "video": va = a.video_url ? 1 : 0; vb = b.video_url ? 1 : 0; break;
+          case "video_count": va = a.video_count; vb = b.video_count; break;
+          case "note": va = (a.internal_note ?? "").toLowerCase(); vb = (b.internal_note ?? "").toLowerCase(); break;
+          case "note2": va = (a.note_2 ?? "").toLowerCase(); vb = (b.note_2 ?? "").toLowerCase(); break;
+        }
+        if (va < vb) return -dir;
+        if (va > vb) return dir;
+        return 0;
+      });
+    }
+
+    return list;
+  }, [campaign.kocs, statusFilter, fAccount, fFollowerMin, fFollowerMax, fClient, fVideo, fVideoCount, fNote, fNote2, fLinkFinal, sortKey, sortDir]);
 
   function handleStatusChange(campaignKocId: string, newStatus: SimpleStatus) {
     setError(null);
@@ -442,15 +842,27 @@ export default function KocBoard({
     });
   }
 
+  function clearAllFilters() {
+    setFAccount("");
+    setFFollowerMin("");
+    setFFollowerMax("");
+    setFClient(null);
+    setFVideo("all");
+    setFVideoCount("");
+    setFNote("");
+    setFNote2("");
+    setFLinkFinal("");
+  }
+
   return (
     <div>
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-1.5">
           <button
-            onClick={() => setFilter("all")}
+            onClick={() => setStatusFilter("all")}
             className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
-              filter === "all"
+              statusFilter === "all"
                 ? "bg-zinc-800 text-white"
                 : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
             }`}
@@ -460,9 +872,9 @@ export default function KocBoard({
           {STATUS_OPTIONS.map((s) => (
             <button
               key={s.value}
-              onClick={() => setFilter(s.value)}
+              onClick={() => setStatusFilter(s.value)}
               className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-                filter === s.value
+                statusFilter === s.value
                   ? `${s.bg} ${s.text}`
                   : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
               }`}
@@ -473,9 +885,26 @@ export default function KocBoard({
             </button>
           ))}
         </div>
-        <Button size="sm" onClick={() => setAddOpen(true)} disabled={availableKocs.length === 0 || isPending}>
-          <Plus className="h-4 w-4 mr-1" /> Thêm KOC
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant={showFilterRow ? "secondary" : "outline"}
+            onClick={() => setShowFilterRow((v) => !v)}
+            className="gap-1.5"
+          >
+            <Filter className="h-3.5 w-3.5" />
+            Lọc cột
+            {hasActiveFilters && <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />}
+          </Button>
+          {hasActiveFilters && (
+            <Button size="sm" variant="ghost" onClick={clearAllFilters} className="gap-1 text-zinc-500">
+              <X className="h-3.5 w-3.5" /> Xoá lọc
+            </Button>
+          )}
+          <Button size="sm" onClick={() => setAddOpen(true)} disabled={availableKocs.length === 0 || isPending}>
+            <Plus className="h-4 w-4 mr-1" /> Thêm KOC
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -483,12 +912,10 @@ export default function KocBoard({
       )}
 
       <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
-        {filteredKocs.length === 0 ? (
+        {campaign.kocs.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-zinc-500 text-sm">
-              {campaign.kocs.length === 0 ? "Chưa có KOC nào trong campaign này." : "Không có KOC nào ở trạng thái này."}
-            </p>
-            {campaign.kocs.length === 0 && availableKocs.length > 0 && (
+            <p className="text-zinc-500 text-sm">Chưa có KOC nào trong campaign này.</p>
+            {availableKocs.length > 0 && (
               <Button size="sm" className="mt-3" onClick={() => setAddOpen(true)}>
                 <Plus className="h-4 w-4 mr-1" /> Thêm KOC đầu tiên
               </Button>
@@ -496,36 +923,120 @@ export default function KocBoard({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-xs min-w-[1100px]">
+            <table className="w-full text-xs min-w-[1200px]">
               <thead className="border-b border-zinc-200 bg-zinc-50">
                 <tr>
                   <th className="px-2 py-2 text-left font-medium text-zinc-500 w-10">STT</th>
-                  <th className="px-2 py-2 text-left font-medium text-zinc-500">Tài khoản</th>
-                  <th className="px-2 py-2 text-left font-medium text-zinc-500 w-20">Followers</th>
+                  <SortableHeader label="Tài khoản" sortDir={sortKey === "account" ? sortDir : null} onSort={() => toggleSort("account")} />
+                  <SortableHeader label="Followers" sortDir={sortKey === "follower" ? sortDir : null} onSort={() => toggleSort("follower")} className="w-24" />
                   <th className="px-2 py-2 text-left font-medium text-zinc-500 w-24">Link Kênh</th>
-                  <th className="px-2 py-2 text-left font-medium text-zinc-500 w-20">Client</th>
-                  <th className="px-2 py-2 text-left font-medium text-zinc-500 w-36">Trạng thái</th>
-                  <th className="px-2 py-2 text-center font-medium text-zinc-500 w-14">Video</th>
-                  <th className="px-2 py-2 text-left font-medium text-zinc-500 w-16">SL Video</th>
+                  <SortableHeader label="Client" sortDir={sortKey === "client" ? sortDir : null} onSort={() => toggleSort("client")} className="w-24" />
+                  <SortableHeader label="Trạng thái" sortDir={sortKey === "status" ? sortDir : null} onSort={() => toggleSort("status")} className="w-36" />
+                  <SortableHeader label="Video" sortDir={sortKey === "video" ? sortDir : null} onSort={() => toggleSort("video")} className="w-14" />
+                  <SortableHeader label="SL Video" sortDir={sortKey === "video_count" ? sortDir : null} onSort={() => toggleSort("video_count")} className="w-16" />
                   <th className="px-2 py-2 text-left font-medium text-zinc-500 w-32">Link Final</th>
-                  <th className="px-2 py-2 text-left font-medium text-zinc-500 w-28">Note</th>
-                  <th className="px-2 py-2 text-left font-medium text-zinc-500 w-28">Note 2</th>
-                  <th className="px-2 py-2 w-20" />
+                  <SortableHeader label="Note" sortDir={sortKey === "note" ? sortDir : null} onSort={() => toggleSort("note")} className="w-28" />
+                  <SortableHeader label="Note 2" sortDir={sortKey === "note2" ? sortDir : null} onSort={() => toggleSort("note2")} className="w-28" />
+                  <th className="px-2 py-2 w-24" />
                 </tr>
+                {/* Filter row */}
+                {showFilterRow && (
+                  <tr className="bg-blue-50/30 border-b border-zinc-200">
+                    <td className="px-2 py-1" />
+                    <td className="px-2 py-1">
+                      <FilterInput value={fAccount} onChange={setFAccount} placeholder="Tên / Handle" />
+                    </td>
+                    <td className="px-2 py-1">
+                      <div className="flex gap-0.5">
+                        <input
+                          type="number"
+                          value={fFollowerMin}
+                          onChange={(e) => setFFollowerMin(e.target.value)}
+                          placeholder="Min"
+                          className="w-1/2 bg-white border border-zinc-200 rounded text-[11px] px-1 py-1 outline-none focus:ring-1 focus:ring-blue-300 placeholder:text-zinc-300"
+                        />
+                        <input
+                          type="number"
+                          value={fFollowerMax}
+                          onChange={(e) => setFFollowerMax(e.target.value)}
+                          placeholder="Max"
+                          className="w-1/2 bg-white border border-zinc-200 rounded text-[11px] px-1 py-1 outline-none focus:ring-1 focus:ring-blue-300 placeholder:text-zinc-300"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-2 py-1" />
+                    <td className="px-2 py-1">
+                      <select
+                        value={fClient ? Array.from(fClient).join(",") : "all"}
+                        onChange={(e) => {
+                          if (e.target.value === "all") setFClient(null);
+                          else setFClient(new Set([e.target.value]));
+                        }}
+                        className="w-full bg-white border border-zinc-200 rounded text-[11px] px-1 py-1 outline-none focus:ring-1 focus:ring-blue-300"
+                      >
+                        <option value="all">Tất cả</option>
+                        {clientValues.map((v) => (
+                          <option key={v} value={v}>{CLIENT_STATUS[v]?.label ?? v}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-2 py-1" />
+                    <td className="px-2 py-1">
+                      <select
+                        value={fVideo}
+                        onChange={(e) => setFVideo(e.target.value)}
+                        className="w-full bg-white border border-zinc-200 rounded text-[11px] px-1 py-1 outline-none focus:ring-1 focus:ring-blue-300"
+                      >
+                        <option value="all">Tất cả</option>
+                        <option value="yes">Có</option>
+                        <option value="no">Chưa</option>
+                      </select>
+                    </td>
+                    <td className="px-2 py-1">
+                      <input
+                        type="number"
+                        value={fVideoCount}
+                        onChange={(e) => setFVideoCount(e.target.value)}
+                        placeholder="≥"
+                        className="w-full bg-white border border-zinc-200 rounded text-[11px] px-1 py-1 outline-none focus:ring-1 focus:ring-blue-300 placeholder:text-zinc-300"
+                      />
+                    </td>
+                    <td className="px-2 py-1">
+                      <FilterInput value={fLinkFinal} onChange={setFLinkFinal} placeholder="Link..." />
+                    </td>
+                    <td className="px-2 py-1">
+                      <FilterInput value={fNote} onChange={setFNote} placeholder="Note..." />
+                    </td>
+                    <td className="px-2 py-1">
+                      <FilterInput value={fNote2} onChange={setFNote2} placeholder="Note 2..." />
+                    </td>
+                    <td className="px-2 py-1" />
+                  </tr>
+                )}
               </thead>
               <tbody>
-                {filteredKocs.map((koc, idx) => {
+                {processedKocs.length === 0 ? (
+                  <tr>
+                    <td colSpan={12} className="py-10 text-center text-zinc-400 text-sm">
+                      Không có KOC nào phù hợp với bộ lọc.
+                    </td>
+                  </tr>
+                ) : processedKocs.map((koc, idx) => {
                   const simple = getSimple(koc.operation_status);
                   const statusOpt = STATUS_OPTIONS.find((s) => s.value === simple) ?? STATUS_OPTIONS[0];
                   const hasVideo = !!koc.video_url;
                   const clientSt = CLIENT_STATUS[koc.client_approval_status];
 
-                  const rowBg = simple === "cancelled" ? "bg-red-50/40" : simple === "completed" ? "bg-blue-50/40" : "";
+                  const rowBg = simple === "cancelled"
+                    ? "bg-red-50/50"
+                    : simple === "completed"
+                    ? "bg-blue-50/50"
+                    : "";
 
                   return (
                     <tr
                       key={koc.campaign_koc_id}
-                      className={`border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors ${rowBg} ${isPending ? "opacity-60" : ""}`}
+                      className={`border-b border-zinc-100 last:border-0 hover:bg-zinc-50/80 transition-colors ${rowBg} ${isPending ? "opacity-60" : ""}`}
                     >
                       {/* STT */}
                       <td className="px-2 py-2 text-zinc-400 font-mono">{idx + 1}</td>
@@ -636,7 +1147,16 @@ export default function KocBoard({
 
                       {/* Actions */}
                       <td className="px-2 py-2">
-                        <div className="flex items-center gap-1 justify-end">
+                        <div className="flex items-center gap-0.5 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100"
+                            onClick={() => setEditTarget(koc)}
+                            title="Chỉnh sửa thông tin"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
                           {simple === "in_progress" && (
                             <Button
                               variant="ghost"
@@ -667,6 +1187,20 @@ export default function KocBoard({
           </div>
         )}
       </div>
+
+      {/* Summary bar */}
+      {processedKocs.length > 0 && processedKocs.length !== campaign.kocs.length && (
+        <div className="mt-2 text-xs text-zinc-400">
+          Hiển thị {processedKocs.length} / {campaign.kocs.length} KOC
+        </div>
+      )}
+
+      {/* Edit KOC Dialog */}
+      <EditKocDialog
+        koc={editTarget}
+        campaignId={campaign.campaign_id}
+        onClose={() => setEditTarget(null)}
+      />
 
       {/* Add KOCs Dialog */}
       <AddKocsDialog
