@@ -1,21 +1,12 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getKocByToken } from "@/lib/actions/koc";
-import AddressForm from "@/components/koc/address-form";
-import SampleConfirm from "@/components/koc/sample-confirm";
 import VideoForm from "@/components/koc/video-form";
 import StatusCard from "@/components/koc/status-card";
 
 export const metadata: Metadata = {
   title: "KOC CityAds",
 };
-
-const ACTION_STATUSES = ["client_approved", "waiting_address", "sample_sent", "sample_received", "waiting_video", "need_revision"] as const;
-type ActionStatus = (typeof ACTION_STATUSES)[number];
-
-function isActionStatus(s: string): s is ActionStatus {
-  return (ACTION_STATUSES as readonly string[]).includes(s);
-}
 
 export default async function KocTokenPage({
   params,
@@ -51,26 +42,17 @@ export default async function KocTokenPage({
           )}
         </div>
 
-        {(koc.operation_status === "waiting_address" ||
-          koc.operation_status === "client_approved") && (
-          <AddressForm token={token} />
-        )}
-
-        {koc.operation_status === "sample_sent" && (
-          <SampleConfirm token={token} />
-        )}
-
-        {(koc.operation_status === "waiting_video" ||
-          koc.operation_status === "sample_received" ||
-          koc.operation_status === "need_revision") && (
+        {["in_progress", "waiting_video", "need_revision", "sample_received",
+          "client_approved", "waiting_address", "draft", "sent_to_client",
+          "address_submitted", "waiting_sample_sent", "sample_sent",
+          "video_submitted"
+        ].includes(koc.operation_status) ? (
           <VideoForm
             token={token}
             isRevision={koc.operation_status === "need_revision"}
             revisionNote={koc.revision_note}
           />
-        )}
-
-        {!isActionStatus(koc.operation_status) && (
+        ) : (
           <StatusCard operationStatus={koc.operation_status} />
         )}
       </div>

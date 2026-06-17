@@ -44,9 +44,10 @@ function parseTiktokIdName(raw: string): { handle: string; displayName: string }
 
 interface Props {
   registrationToken: string;
+  thankYouMessage?: string | null;
 }
 
-export default function KocRegistrationForm({ registrationToken }: Props) {
+export default function KocRegistrationForm({ registrationToken, thankYouMessage }: Props) {
   const [isPending, startTransition] = useTransition();
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -90,10 +91,19 @@ export default function KocRegistrationForm({ registrationToken }: Props) {
     return (
       <div className="bg-white rounded-xl border border-zinc-200 p-8 text-center">
         <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-        <h2 className="text-lg font-bold text-zinc-800 mb-1">Đăng ký thành công!</h2>
-        <p className="text-sm text-zinc-500">
-          Thông tin của bạn đã được ghi nhận. CityAds sẽ liên hệ qua Zalo nếu bạn được chọn.
-        </p>
+        {thankYouMessage ? (
+          <div
+            className="text-sm text-zinc-600 [&_p]:mb-2 [&_a]:text-blue-600 [&_a]:underline"
+            dangerouslySetInnerHTML={{ __html: thankYouMessage }}
+          />
+        ) : (
+          <>
+            <h2 className="text-lg font-bold text-zinc-800 mb-1">Đăng ký thành công!</h2>
+            <p className="text-sm text-zinc-500">
+              Thông tin của bạn đã được ghi nhận. CityAds sẽ liên hệ qua Zalo nếu bạn được chọn.
+            </p>
+          </>
+        )}
       </div>
     );
   }

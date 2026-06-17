@@ -197,7 +197,10 @@ export type Database = {
           video_shares: number | null
           video_submitted_at: string | null
           video_url: string | null
+          video_count: number
           video_views: number | null
+          final_link: string | null
+          note_2: string | null
         }
         Insert: {
           address_note?: string | null
@@ -239,7 +242,10 @@ export type Database = {
           video_shares?: number | null
           video_submitted_at?: string | null
           video_url?: string | null
+          video_count?: number
           video_views?: number | null
+          final_link?: string | null
+          note_2?: string | null
         }
         Update: {
           address_note?: string | null
@@ -281,7 +287,10 @@ export type Database = {
           video_shares?: number | null
           video_submitted_at?: string | null
           video_url?: string | null
+          video_count?: number
           video_views?: number | null
+          final_link?: string | null
+          note_2?: string | null
         }
         Relationships: [
           {
@@ -364,6 +373,7 @@ export type Database = {
           package_size: number
           report_notes: string | null
           report_published_at: string | null
+          registration_thank_you: string | null
           report_share_token: string | null
           source: string
           start_date: string | null
@@ -381,6 +391,7 @@ export type Database = {
           package_size?: number
           report_notes?: string | null
           report_published_at?: string | null
+          registration_thank_you?: string | null
           report_share_token?: string | null
           source?: string
           start_date?: string | null
@@ -398,6 +409,7 @@ export type Database = {
           package_size?: number
           report_notes?: string | null
           report_published_at?: string | null
+          registration_thank_you?: string | null
           report_share_token?: string | null
           source?: string
           start_date?: string | null
@@ -2108,6 +2120,7 @@ export type Database = {
         | "custom"
       operation_status:
         | "draft"
+        | "in_progress"
         | "sent_to_client"
         | "client_approved"
         | "client_rejected"
@@ -2122,6 +2135,7 @@ export type Database = {
         | "video_approved"
         | "completed"
         | "failed"
+        | "cancelled"
       sample_status: "waiting" | "sent" | "received" | "not_received" | "issue"
       user_role: "super_admin" | "admin" | "operator" | "client"
     }
@@ -2284,6 +2298,7 @@ export const Constants = {
       ],
       operation_status: [
         "draft",
+        "in_progress",
         "sent_to_client",
         "client_approved",
         "client_rejected",
@@ -2298,6 +2313,7 @@ export const Constants = {
         "video_approved",
         "completed",
         "failed",
+        "cancelled",
       ],
       sample_status: ["waiting", "sent", "received", "not_received", "issue"],
       user_role: ["super_admin", "admin", "operator", "client"],

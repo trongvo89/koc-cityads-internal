@@ -11,6 +11,12 @@ type StatusConfig = {
 };
 
 const STATUS_CONFIG: Record<OperationStatus, StatusConfig> = {
+  in_progress: {
+    icon: <Clock className="w-7 h-7 text-blue-500" />,
+    iconBg: "bg-blue-100",
+    title: "Đang tiến hành",
+    description: "Vui lòng nộp video khi sẵn sàng.",
+  },
   draft: {
     icon: <Clock className="w-7 h-7 text-zinc-500" />,
     iconBg: "bg-zinc-100",
@@ -100,6 +106,12 @@ const STATUS_CONFIG: Record<OperationStatus, StatusConfig> = {
     iconBg: "bg-red-100",
     title: "Campaign đã kết thúc",
     description: "Campaign này đã kết thúc. Cảm ơn bạn đã tham gia.",
+  },
+  cancelled: {
+    icon: <XCircle className="w-7 h-7 text-red-500" />,
+    iconBg: "bg-red-100",
+    title: "Đã huỷ",
+    description: "Campaign này đã bị huỷ. Cảm ơn bạn đã tham gia.",
   },
 };
 

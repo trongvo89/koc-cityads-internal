@@ -49,6 +49,12 @@ export type CampaignKocRow = {
   client_video_feedback: string | null;
   client_video_feedback_at: string | null;
   client_quality_rating: number | null;
+  koc_tiktok_handle: string | null;
+  koc_tiktok_url: string | null;
+  koc_follower: number | null;
+  video_count: number;
+  final_link: string | null;
+  note_2: string | null;
 };
 
 export type CampaignDetail = {
@@ -134,7 +140,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: kocs, error: ke } = await supabase
     .from("campaign_kocs")
     .select(
-      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, client_video_feedback, client_video_feedback_at, client_quality_rating, kocs(name, category, phone, zalo)"
+      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, client_video_feedback, client_video_feedback_at, client_quality_rating, video_count, final_link, note_2, kocs(name, category, phone, zalo, tiktok_url, follower)"
     )
     .eq("campaign_id", id)
     .order("created_at", { ascending: true });
@@ -162,7 +168,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
       start_date: campaign.start_date,
       end_date: campaign.end_date,
       kocs: (kocs ?? []).map((k) => {
-        const kocData = k.kocs as { name: string; category: string[] | null; phone: string | null; zalo: string | null } | null;
+        const kocData = k.kocs as { name: string; category: string[] | null; phone: string | null; zalo: string | null; tiktok_url: string | null; follower: number | null } | null;
         return {
         campaign_koc_id: k.campaign_koc_id,
         koc_id: k.koc_id,
@@ -170,6 +176,9 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
         koc_category: kocData?.category ?? null,
         koc_phone: kocData?.phone ?? null,
         koc_zalo: kocData?.zalo ?? null,
+        koc_tiktok_handle: null,
+        koc_tiktok_url: kocData?.tiktok_url ?? null,
+        koc_follower: kocData?.follower ?? null,
         operation_status: k.operation_status,
         address_status: k.address_status,
         sample_status: k.sample_status,
@@ -188,6 +197,9 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
         client_video_feedback: k.client_video_feedback,
         client_video_feedback_at: k.client_video_feedback_at,
         client_quality_rating: k.client_quality_rating,
+        video_count: k.video_count ?? 0,
+        final_link: k.final_link ?? null,
+        note_2: k.note_2 ?? null,
         };
       }),
     },
@@ -350,28 +362,11 @@ export async function addKocsToCampaign(
 
   const supabase = await createClient();
 
-  const { data: kocs } = await supabase
-    .from("kocs")
-    .select("koc_id, name, phone, default_address, location")
-    .in("koc_id", kocIds);
-
-  const kocMap = new Map((kocs ?? []).map((k) => [k.koc_id, k]));
-
-  const rows = kocIds.map((kocId) => {
-    const koc = kocMap.get(kocId);
-    const hasAddress = !!koc?.default_address;
-    return {
-      campaign_id: campaignId,
-      koc_id: kocId,
-      ...(hasAddress && {
-        receiver_name: koc!.name,
-        receiver_phone: koc!.phone ?? null,
-        receiver_address: koc!.default_address!,
-        receiver_province: koc!.location ?? null,
-        address_status: "submitted" as const,
-      }),
-    };
-  });
+  const rows = kocIds.map((kocId) => ({
+    campaign_id: campaignId,
+    koc_id: kocId,
+    operation_status: 'in_progress' as const,
+  }));
 
   const { error } = await supabase.from("campaign_kocs").insert(rows);
   if (error) return { success: false, error: error.message };
@@ -414,6 +409,27 @@ export async function updateCampaignKocStatus(
   const { error } = await supabase
     .from("campaign_kocs")
     .update(updates)
+    .eq("campaign_koc_id", campaignKocId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  return { success: true, data: undefined };
+}
+
+export async function updateCampaignKocField(
+  campaignKocId: string,
+  campaignId: string,
+  field: string,
+  value: string | number | null
+): Promise<ActionResult> {
+  const allowed = new Set(["video_count", "final_link", "internal_note", "note_2", "video_url"]);
+  if (!allowed.has(field)) return { success: false, error: "Invalid field" };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("campaign_kocs")
+    .update({ [field]: value } as any)
     .eq("campaign_koc_id", campaignKocId);
 
   if (error) return { success: false, error: error.message };

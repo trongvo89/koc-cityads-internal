@@ -6,6 +6,8 @@ import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
+import { TextStyle } from "@tiptap/extension-text-style";
+import FontFamily from "@tiptap/extension-font-family";
 import {
   Bold, Italic, Link2, ImageIcon, List, ListOrdered,
   Heading2, Heading3, SmilePlus, Undo, Redo,
@@ -165,6 +167,8 @@ export default function RichTextEditor({
   const editor = useEditor({
     extensions: [
       StarterKit,
+      TextStyle,
+      FontFamily,
       Link.configure({
         openOnClick: false,
         HTMLAttributes: { class: "text-blue-600 underline cursor-pointer" },
@@ -261,6 +265,27 @@ export default function RichTextEditor({
         >
           <Redo className="h-3.5 w-3.5" />
         </ToolbarBtn>
+
+        <div className="w-px h-4 bg-zinc-200 mx-1" />
+
+        {/* Font family */}
+        <select
+          title="Phông chữ"
+          value={editor.getAttributes("textStyle").fontFamily ?? ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v) {
+              editor.chain().focus().setFontFamily(v).run();
+            } else {
+              editor.chain().focus().unsetFontFamily().run();
+            }
+          }}
+          className="h-7 text-xs border border-zinc-200 rounded px-1.5 bg-white text-zinc-600 outline-none focus:ring-1 focus:ring-zinc-400 cursor-pointer"
+        >
+          <option value="">Mặc định</option>
+          <option value="Times New Roman, serif">Times New Roman</option>
+          <option value="Arial, sans-serif">Arial</option>
+        </select>
 
         <div className="w-px h-4 bg-zinc-200 mx-1" />
 

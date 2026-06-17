@@ -23,3 +23,6 @@ export const OPERATION_STATUSES: OperationStatus[] = [
   "sample_sent", "sample_received", "waiting_video",
   "video_submitted", "need_revision", "video_approved", "completed", "failed",
 ];
+
+export const SIMPLE_OPERATION_STATUSES = ['in_progress', 'completed', 'cancelled'] as const;
+export type SimpleOperationStatus = (typeof SIMPLE_OPERATION_STATUSES)[number];

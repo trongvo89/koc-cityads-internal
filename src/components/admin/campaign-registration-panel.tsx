@@ -76,6 +76,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
   const [applications, setApplications] = useState<KocApplication[]>([]);
   const [brief, setBrief] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [thankYou, setThankYou] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
@@ -92,6 +93,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
         setRegData(r.data);
         setBrief(r.data.registration_brief ?? "");
         setInstructions(r.data.registration_instructions ?? "");
+        setThankYou(r.data.registration_thank_you || "");
         setIsDirty(false);
       }
     });
@@ -119,6 +121,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
       const result = await updateCampaignRegistration(campaignId, {
         registration_brief: brief || null,
         registration_instructions: instructions || null,
+        registration_thank_you: thankYou || null,
       });
       if (result.success) {
         setSaveMsg("Đã lưu");
@@ -277,6 +280,21 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                   onChange={(html) => { setInstructions(html); setIsDirty(true); }}
                   placeholder={"Bước 1: Nhận sản phẩm...\nBước 2: Đăng video TikTok...\nBước 3: Submit link..."}
                   minHeight={130}
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-zinc-700">
+                  Nội dung sau đăng ký (trang cảm ơn)
+                </Label>
+                <p className="text-xs text-zinc-400 mb-2">
+                  Tuỳ chỉnh nội dung hiển thị sau khi KOC đăng ký thành công. Để trống để dùng mặc định.
+                </p>
+                <RichTextEditor
+                  value={thankYou}
+                  onChange={setThankYou}
+                  placeholder="Cảm ơn bạn đã đăng ký! Chúng tôi sẽ liên hệ sớm..."
+                  campaignId={campaignId}
+                  minHeight={80}
                 />
               </div>
               {isDirty && (

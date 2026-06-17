@@ -15,7 +15,7 @@ const ALLOWED_TAGS = [
 const ALLOWED_ATTR: sanitizeHtml.IOptions["allowedAttributes"] = {
   a: ["href", "target", "rel"],
   img: ["src", "alt", "class"],
-  "*": ["class"],
+  "*": ["class", "style"],
 };
 
 function SafeHtml({ html }: { html: string }) {
@@ -30,7 +30,7 @@ function SafeHtml({ html }: { html: string }) {
 
   return (
     <div
-      className="prose-sm text-zinc-600 [&_a]:text-blue-600 [&_a]:underline [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-2 [&_h2]:font-bold [&_h2]:text-zinc-800 [&_h3]:font-semibold [&_h3]:text-zinc-700 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5"
+      className="prose-sm text-zinc-600 [&_p]:mb-2 [&_a]:text-blue-600 [&_a]:underline [&_img]:max-w-full [&_img]:rounded-lg [&_img]:my-2 [&_h2]:font-bold [&_h2]:text-zinc-800 [&_h3]:font-semibold [&_h3]:text-zinc-700 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5"
       dangerouslySetInnerHTML={{ __html: clean }}
     />
   );
@@ -91,7 +91,7 @@ export default async function ApplyPage({
         )}
 
         {campaign.registration_open ? (
-          <KocRegistrationForm registrationToken={token} />
+          <KocRegistrationForm registrationToken={token} thankYouMessage={campaign.registration_thank_you} />
         ) : (
           <div className="bg-white rounded-2xl border border-zinc-200 p-6 text-center shadow-sm">
             <p className="text-zinc-500 text-sm">Đăng ký cho campaign này đã đóng.</p>

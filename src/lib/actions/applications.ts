@@ -30,6 +30,7 @@ export type CampaignRegistrationData = {
   registration_open: boolean;
   registration_brief: string | null;
   registration_instructions: string | null;
+  registration_thank_you: string | null;
   review_token: string | null;
 };
 
@@ -40,6 +41,7 @@ export type PublicCampaignInfo = {
   campaign_name: string;
   registration_brief: string | null;
   registration_instructions: string | null;
+  registration_thank_you: string | null;
   registration_open: boolean;
   start_date: string | null;
   end_date: string | null;
@@ -214,7 +216,7 @@ export async function addApplicationToCampaign(
     campaign_id: campaignId,
     koc_id: kocId,
     client_approval_status: alreadyApproved ? "approved" : "pending",
-    operation_status: alreadyApproved ? "waiting_address" : "draft",
+    operation_status: 'in_progress' as const,
   } as any);
 
   if (insertError) return { success: false, error: insertError.message };
@@ -260,10 +262,10 @@ export async function bulkAddApprovedToCampaign(
     campaign_id: campaignId,
     koc_id: kocId,
     client_approval_status: "approved" as const,
-    operation_status: "waiting_address" as const,
+    operation_status: "in_progress" as const,
   }));
 
-  const { error: insertError } = await supabase.from("campaign_kocs").insert(rows);
+  const { error: insertError } = await supabase.from("campaign_kocs").insert(rows as any);
   if (insertError) return { success: false, error: insertError.message };
 
   revalidatePath(`/admin/campaigns/${campaignId}`);
@@ -279,7 +281,7 @@ export async function getCampaignRegistrationData(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("campaigns")
-    .select("campaign_id, campaign_name, registration_token, registration_open, registration_brief, registration_instructions, review_token")
+    .select("campaign_id, campaign_name, registration_token, registration_open, registration_brief, registration_instructions, registration_thank_you, review_token")
     .eq("campaign_id", campaignId)
     .single();
 
@@ -294,6 +296,7 @@ export async function getCampaignRegistrationData(
       registration_open: (data as any).registration_open ?? false,
       registration_brief: (data as any).registration_brief,
       registration_instructions: (data as any).registration_instructions,
+      registration_thank_you: (data as any).registration_thank_you ?? null,
       review_token: (data as any).review_token,
     },
   };
@@ -305,6 +308,7 @@ export async function updateCampaignRegistration(
     registration_open?: boolean;
     registration_brief?: string | null;
     registration_instructions?: string | null;
+    registration_thank_you?: string | null;
   }
 ): Promise<ActionResult> {
   const supabase = await createClient();
