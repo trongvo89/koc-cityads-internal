@@ -3,11 +3,19 @@
 import { useState, useTransition, useEffect, useCallback } from "react";
 import {
   Link2, Copy, Check, ChevronDown, ChevronUp, Users, ExternalLink,
-  ToggleLeft, ToggleRight, RefreshCw,
+  ToggleLeft, ToggleRight, RefreshCw, Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import RichTextEditor from "@/components/ui/rich-text-editor";
 import {
   getApplicationsByCampaign,
@@ -15,6 +23,7 @@ import {
   updateCampaignRegistration,
   addApplicationToCampaign,
   bulkAddApprovedToCampaign,
+  updateApplicationInfo,
   type KocApplication,
   type CampaignRegistrationData,
 } from "@/lib/actions/applications";
@@ -66,6 +75,114 @@ const STYLE_LABEL = {
   ugc_style: "UGC & Style",
 } as const;
 
+// ─── Edit Application Dialog ─────────────────────────────────────────────────
+
+function EditApplicationDialog({
+  app,
+  campaignId,
+  onClose,
+  onSaved,
+}: {
+  app: KocApplication | null;
+  campaignId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [handle, setHandle] = useState("");
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [followers, setFollowers] = useState("");
+  const [gmv, setGmv] = useState("");
+  const [zalo, setZalo] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!app) return;
+    setHandle(app.tiktok_handle ?? "");
+    setName(app.tiktok_name ?? "");
+    setUrl(app.tiktok_url ?? "");
+    setFollowers(String(app.follower_count ?? 0));
+    setGmv(String(app.gmv_30d ?? 0));
+    setZalo(app.zalo_phone ?? "");
+    setErr(null);
+  }, [app]);
+
+  function handleSave() {
+    if (!app) return;
+    if (!handle.trim()) { setErr("TikTok Handle không được trống"); return; }
+    setErr(null);
+    startTransition(async () => {
+      const result = await updateApplicationInfo(app.id, campaignId, {
+        tiktok_handle: handle.trim(),
+        tiktok_name: name.trim(),
+        tiktok_url: url.trim(),
+        follower_count: Number(followers) || 0,
+        gmv_30d: Number(gmv) || 0,
+        zalo_phone: zalo.trim(),
+      });
+      if (result.success) {
+        onSaved();
+        onClose();
+      } else {
+        setErr(result.error);
+      }
+    });
+  }
+
+  if (!app) return null;
+
+  return (
+    <Dialog open={!!app} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-zinc-500" />
+            Chỉnh sửa đơn đăng ký
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">TikTok Handle <span className="text-red-500">*</span></Label>
+              <Input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@handle" className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Tên TikTok</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tên hiển thị" className="h-9 text-sm" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">TikTok URL</Label>
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://tiktok.com/@..." className="h-9 text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Followers</Label>
+              <Input type="number" value={followers} onChange={(e) => setFollowers(e.target.value)} placeholder="10000" className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">GMV 30 ngày</Label>
+              <Input type="number" value={gmv} onChange={(e) => setGmv(e.target.value)} placeholder="100000000" className="h-9 text-sm" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">SĐT Zalo</Label>
+            <Input value={zalo} onChange={(e) => setZalo(e.target.value)} placeholder="0901234567" className="h-9 text-sm" />
+          </div>
+          {err && <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1.5">{err}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>Hủy</Button>
+          <Button onClick={handleSave} disabled={isPending}>
+            {isPending ? "Đang lưu..." : "Lưu thay đổi"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface Props {
   campaignId: string;
 }
@@ -83,6 +200,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [bulkMsg, setBulkMsg] = useState<string | null>(null);
+  const [editApp, setEditApp] = useState<KocApplication | null>(null);
 
   const baseUrl =
     typeof window !== "undefined" ? window.location.origin : "";
@@ -405,15 +523,24 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                           {new Date(app.applied_at).toLocaleDateString("vi-VN")}
                         </td>
                         <td className="px-4 py-2.5">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs"
-                            disabled={isPending || addingId === app.id || !app.koc_id || addedIds.has(app.id)}
-                            onClick={() => handleAddOne(app.id)}
-                          >
-                            {addingId === app.id ? "..." : addedIds.has(app.id) ? "Đã thêm" : "Thêm vào campaign"}
-                          </Button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setEditApp(app)}
+                              className="p-1 text-zinc-400 hover:text-zinc-700 transition-colors rounded hover:bg-zinc-100"
+                              title="Chỉnh sửa thông tin"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs"
+                              disabled={isPending || addingId === app.id || !app.koc_id || addedIds.has(app.id)}
+                              onClick={() => handleAddOne(app.id)}
+                            >
+                              {addingId === app.id ? "..." : addedIds.has(app.id) ? "Đã thêm" : "Thêm vào campaign"}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -424,6 +551,14 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
           </div>
         </div>
       )}
+
+      {/* Edit Application Dialog */}
+      <EditApplicationDialog
+        app={editApp}
+        campaignId={campaignId}
+        onClose={() => setEditApp(null)}
+        onSaved={load}
+      />
     </div>
   );
 }

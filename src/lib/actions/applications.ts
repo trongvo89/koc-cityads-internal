@@ -322,3 +322,58 @@ export async function updateCampaignRegistration(
   revalidatePath(`/admin/campaigns/${campaignId}`);
   return { success: true, data: undefined };
 }
+
+// ─── Update Application Info ─────────────────────────────────────────────────
+
+export async function updateApplicationInfo(
+  applicationId: string,
+  campaignId: string,
+  data: {
+    tiktok_handle: string;
+    tiktok_name: string;
+    tiktok_url: string;
+    follower_count: number;
+    gmv_30d: number;
+    zalo_phone: string;
+  }
+): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  // Update koc_applications
+  const { data: app, error: appErr } = await (supabase
+    .from("koc_applications" as any)
+    .update({
+      tiktok_handle: data.tiktok_handle,
+      tiktok_name: data.tiktok_name,
+      tiktok_url: data.tiktok_url,
+      follower_count: data.follower_count,
+      gmv_30d: data.gmv_30d,
+      zalo_phone: data.zalo_phone,
+    })
+    .eq("id", applicationId)
+    .select("koc_id")
+    .single() as any);
+
+  if (appErr) return { success: false, error: appErr.message };
+
+  // Also update the linked kocs master record
+  const kocId = (app as any)?.koc_id;
+  if (kocId) {
+    const { error: kocErr } = await supabase
+      .from("kocs")
+      .update({
+        name: data.tiktok_name || data.tiktok_handle,
+        tiktok_handle: data.tiktok_handle || null,
+        tiktok_url: data.tiktok_url || null,
+        follower: data.follower_count,
+        phone: data.zalo_phone || null,
+        zalo: data.zalo_phone || null,
+      })
+      .eq("koc_id", kocId);
+
+    if (kocErr) return { success: false, error: kocErr.message };
+  }
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  return { success: true, data: undefined };
+}
