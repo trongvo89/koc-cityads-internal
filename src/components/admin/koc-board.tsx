@@ -71,10 +71,10 @@ const SIMPLE_MAP: Record<string, SimpleStatus> = {
   cancelled: "cancelled",
 };
 
-const STATUS_OPTIONS: { value: SimpleStatus; label: string; bg: string; text: string }[] = [
-  { value: "in_progress", label: "Đang tiến hành", bg: "bg-blue-50", text: "text-blue-700" },
-  { value: "completed", label: "Hoàn thành", bg: "bg-green-50", text: "text-green-700" },
-  { value: "cancelled", label: "Huỷ", bg: "bg-red-50", text: "text-red-700" },
+const STATUS_OPTIONS: { value: SimpleStatus; label: string; bg: string; text: string; dot: string }[] = [
+  { value: "in_progress", label: "Đang tiến hành", bg: "bg-green-100", text: "text-green-800", dot: "bg-green-500" },
+  { value: "completed", label: "Hoàn thành", bg: "bg-blue-100", text: "text-blue-800", dot: "bg-blue-600" },
+  { value: "cancelled", label: "Huỷ", bg: "bg-red-100", text: "text-red-800", dot: "bg-red-500" },
 ];
 
 const CLIENT_STATUS: Record<string, { label: string; variant: "warning" | "success" | "destructive" }> = {
@@ -403,6 +403,13 @@ export default function KocBoard({
   const assignedKocIds = new Set(campaign.kocs.map((k) => k.koc_id));
   const availableKocs = allKocs.filter((k) => !assignedKocIds.has(k.koc_id));
 
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: campaign.kocs.length };
+    for (const s of STATUS_OPTIONS) counts[s.value] = 0;
+    for (const k of campaign.kocs) counts[getSimple(k.operation_status)] = (counts[getSimple(k.operation_status)] || 0) + 1;
+    return counts;
+  }, [campaign.kocs]);
+
   const filteredKocs = filter === "all"
     ? campaign.kocs
     : campaign.kocs.filter((k) => getSimple(k.operation_status) === filter);
@@ -439,19 +446,32 @@ export default function KocBoard({
     <div>
       {/* Toolbar */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Select value={filter} onValueChange={setFilter}>
-            <SelectTrigger className="w-44 h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả trạng thái</SelectItem>
-              {STATUS_OPTIONS.map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <span className="text-xs text-zinc-400">{filteredKocs.length} KOC</span>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setFilter("all")}
+            className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
+              filter === "all"
+                ? "bg-zinc-800 text-white"
+                : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+            }`}
+          >
+            Tất cả <span className="ml-1 opacity-70">{statusCounts.all}</span>
+          </button>
+          {STATUS_OPTIONS.map((s) => (
+            <button
+              key={s.value}
+              onClick={() => setFilter(s.value)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                filter === s.value
+                  ? `${s.bg} ${s.text}`
+                  : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${s.dot}`} />
+              {s.label}
+              <span className="opacity-70">{statusCounts[s.value] || 0}</span>
+            </button>
+          ))}
         </div>
         <Button size="sm" onClick={() => setAddOpen(true)} disabled={availableKocs.length === 0 || isPending}>
           <Plus className="h-4 w-4 mr-1" /> Thêm KOC
@@ -500,10 +520,12 @@ export default function KocBoard({
                   const hasVideo = !!koc.video_url;
                   const clientSt = CLIENT_STATUS[koc.client_approval_status];
 
+                  const rowBg = simple === "cancelled" ? "bg-red-50/40" : simple === "completed" ? "bg-blue-50/40" : "";
+
                   return (
                     <tr
                       key={koc.campaign_koc_id}
-                      className={`border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors ${isPending ? "opacity-60" : ""}`}
+                      className={`border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors ${rowBg} ${isPending ? "opacity-60" : ""}`}
                     >
                       {/* STT */}
                       <td className="px-2 py-2 text-zinc-400 font-mono">{idx + 1}</td>
