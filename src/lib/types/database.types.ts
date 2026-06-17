@@ -376,6 +376,7 @@ export type Database = {
           package_size: number
           report_notes: string | null
           report_published_at: string | null
+          registration_form_config: Json | null
           registration_thank_you: string | null
           report_share_token: string | null
           source: string
@@ -392,6 +393,7 @@ export type Database = {
           created_at?: string
           end_date?: string | null
           package_size?: number
+          registration_form_config?: Json | null
           report_notes?: string | null
           report_published_at?: string | null
           registration_thank_you?: string | null
@@ -410,6 +412,7 @@ export type Database = {
           created_at?: string
           end_date?: string | null
           package_size?: number
+          registration_form_config?: Json | null
           report_notes?: string | null
           report_published_at?: string | null
           registration_thank_you?: string | null

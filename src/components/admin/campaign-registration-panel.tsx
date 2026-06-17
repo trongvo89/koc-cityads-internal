@@ -17,6 +17,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import RichTextEditor from "@/components/ui/rich-text-editor";
+import FormConfigEditor from "@/components/admin/form-config-editor";
+import { getFormConfig, BUILTIN_KEYS, type FormFieldConfig } from "@/lib/types/form-config";
 import {
   getApplicationsByCampaign,
   getCampaignRegistrationData,
@@ -201,6 +203,10 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [bulkMsg, setBulkMsg] = useState<string | null>(null);
   const [editApp, setEditApp] = useState<KocApplication | null>(null);
+  const [formFields, setFormFields] = useState<FormFieldConfig[]>([]);
+  const [formDirty, setFormDirty] = useState(false);
+  const [formSaveMsg, setFormSaveMsg] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
 
   const baseUrl =
     typeof window !== "undefined" ? window.location.origin : "";
@@ -212,6 +218,8 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
         setBrief(r.data.registration_brief ?? "");
         setInstructions(r.data.registration_instructions ?? "");
         setThankYou(r.data.registration_thank_you || "");
+        setFormFields(getFormConfig(r.data.registration_form_config));
+        setFormDirty(false);
         setIsDirty(false);
       }
     });
@@ -277,6 +285,20 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
 
   const pendingCount = applications.filter((a) => a.status === "pending").length;
   const approvedCount = applications.filter((a) => a.status === "approved").length;
+
+  const customFieldKeys = (() => {
+    const keys = new Set<string>();
+    for (const app of applications) {
+      if (app.custom_data) {
+        for (const k of Object.keys(app.custom_data)) keys.add(k);
+      }
+    }
+    return [...keys];
+  })();
+  const customFieldLabels: Record<string, string> = {};
+  for (const f of formFields) {
+    if (!BUILTIN_KEYS.has(f.key)) customFieldLabels[f.key] = f.label || f.key;
+  }
 
   return (
     <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
@@ -429,6 +451,51 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
             </div>
           </div>
 
+          {/* Form Config Editor */}
+          <div className="border-t border-zinc-100 px-5 py-4">
+            <button
+              onClick={() => setFormOpen((v) => !v)}
+              className="flex items-center gap-2 text-sm font-medium text-zinc-700 hover:text-zinc-900 transition-colors"
+            >
+              {formOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              Tuỳ chỉnh form đăng ký
+            </button>
+            {formOpen && (
+              <div className="mt-3 space-y-3">
+                <FormConfigEditor
+                  config={formFields}
+                  onChange={(cfg) => { setFormFields(cfg); setFormDirty(true); }}
+                />
+                {formDirty && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        startTransition(async () => {
+                          const result = await updateCampaignRegistration(campaignId, {
+                            registration_form_config: formFields,
+                          });
+                          if (result.success) {
+                            setFormDirty(false);
+                            setFormSaveMsg("Đã lưu form config");
+                            setTimeout(() => setFormSaveMsg(null), 2000);
+                          }
+                        });
+                      }}
+                      disabled={isPending}
+                    >
+                      {isPending ? "Đang lưu..." : "Lưu cấu hình form"}
+                    </Button>
+                    {formSaveMsg && <span className="text-xs text-green-600">{formSaveMsg}</span>}
+                  </div>
+                )}
+                {!formDirty && formSaveMsg && (
+                  <span className="text-xs text-green-600">{formSaveMsg}</span>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Applications Table */}
           <div className="border-t border-zinc-100">
             <div className="px-5 py-3 flex items-center justify-between">
@@ -477,6 +544,11 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                       <th className="text-right px-4 py-2 text-xs text-zinc-500 font-medium">GMV 30d</th>
                       <th className="text-left px-4 py-2 text-xs text-zinc-500 font-medium">Zalo</th>
                       <th className="text-left px-4 py-2 text-xs text-zinc-500 font-medium">Phong cách</th>
+                      {customFieldKeys.map((k) => (
+                        <th key={k} className="text-left px-4 py-2 text-xs text-zinc-500 font-medium">
+                          {customFieldLabels[k] || k}
+                        </th>
+                      ))}
                       <th className="text-left px-4 py-2 text-xs text-zinc-500 font-medium">Client duyệt</th>
                       <th className="text-left px-4 py-2 text-xs text-zinc-500 font-medium">Ngày</th>
                       <th className="px-4 py-2"></th>
@@ -507,8 +579,13 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                         </td>
                         <td className="px-4 py-2.5 text-sm text-zinc-600">{app.zalo_phone}</td>
                         <td className="px-4 py-2.5 text-xs text-zinc-600">
-                          {STYLE_LABEL[app.video_style]}
+                          {STYLE_LABEL[app.video_style as keyof typeof STYLE_LABEL] ?? app.video_style}
                         </td>
+                        {customFieldKeys.map((k) => (
+                          <td key={k} className="px-4 py-2.5 text-xs text-zinc-600 max-w-[150px] truncate">
+                            {app.custom_data?.[k] != null ? String(app.custom_data[k]) : "—"}
+                          </td>
+                        ))}
                         <td className="px-4 py-2.5">
                           <Badge variant={STATUS_VARIANT[app.status] as any} className="text-xs">
                             {STATUS_LABEL[app.status]}

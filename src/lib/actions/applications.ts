@@ -16,11 +16,12 @@ export type KocApplication = {
   follower_count: number;
   gmv_30d: number;
   zalo_phone: string;
-  video_style: "show_face_voice" | "ugc_style";
+  video_style: string;
   status: "pending" | "approved" | "rejected";
   review_note: string | null;
   reviewed_at: string | null;
   applied_at: string;
+  custom_data: Record<string, unknown> | null;
 };
 
 export type CampaignRegistrationData = {
@@ -31,6 +32,7 @@ export type CampaignRegistrationData = {
   registration_brief: string | null;
   registration_instructions: string | null;
   registration_thank_you: string | null;
+  registration_form_config: unknown | null;
   review_token: string | null;
 };
 
@@ -42,6 +44,7 @@ export type PublicCampaignInfo = {
   registration_brief: string | null;
   registration_instructions: string | null;
   registration_thank_you: string | null;
+  registration_form_config: unknown | null;
   registration_open: boolean;
   start_date: string | null;
   end_date: string | null;
@@ -73,7 +76,8 @@ export async function submitApplication(
     follower_count: number;
     gmv_30d: number;
     zalo_phone: string;
-    video_style: "show_face_voice" | "ugc_style";
+    video_style: string;
+    custom_data?: Record<string, unknown>;
   }
 ): Promise<ActionResult> {
   const supabase = await createClient();
@@ -87,6 +91,7 @@ export async function submitApplication(
     p_gmv_30d: formData.gmv_30d,
     p_zalo_phone: formData.zalo_phone,
     p_video_style: formData.video_style,
+    p_custom_data: formData.custom_data ?? {},
   });
 
   if (error) return { success: false, error: error.message };
@@ -281,7 +286,7 @@ export async function getCampaignRegistrationData(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("campaigns")
-    .select("campaign_id, campaign_name, registration_token, registration_open, registration_brief, registration_instructions, registration_thank_you, review_token")
+    .select("campaign_id, campaign_name, registration_token, registration_open, registration_brief, registration_instructions, registration_thank_you, registration_form_config, review_token")
     .eq("campaign_id", campaignId)
     .single();
 
@@ -297,6 +302,7 @@ export async function getCampaignRegistrationData(
       registration_brief: (data as any).registration_brief,
       registration_instructions: (data as any).registration_instructions,
       registration_thank_you: (data as any).registration_thank_you ?? null,
+      registration_form_config: (data as any).registration_form_config ?? null,
       review_token: (data as any).review_token,
     },
   };
@@ -309,6 +315,7 @@ export async function updateCampaignRegistration(
     registration_brief?: string | null;
     registration_instructions?: string | null;
     registration_thank_you?: string | null;
+    registration_form_config?: unknown | null;
   }
 ): Promise<ActionResult> {
   const supabase = await createClient();

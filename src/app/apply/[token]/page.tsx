@@ -3,6 +3,7 @@ import sanitizeHtml from "sanitize-html";
 import { getCampaignForRegistration } from "@/lib/actions/applications";
 import KocRegistrationForm from "./registration-form";
 import CityAdsLogo from "@/components/ui/cityads-logo";
+import { getFormConfig } from "@/lib/types/form-config";
 
 const ALLOWED_TAGS = [
   "p", "br", "strong", "b", "em", "i", "u", "s",
@@ -91,7 +92,11 @@ export default async function ApplyPage({
         )}
 
         {campaign.registration_open ? (
-          <KocRegistrationForm registrationToken={token} thankYouMessage={campaign.registration_thank_you} />
+          <KocRegistrationForm
+            registrationToken={token}
+            thankYouMessage={campaign.registration_thank_you}
+            formConfig={getFormConfig(campaign.registration_form_config)}
+          />
         ) : (
           <div className="bg-white rounded-2xl border border-zinc-200 p-6 text-center shadow-sm">
             <p className="text-zinc-500 text-sm">Đăng ký cho campaign này đã đóng.</p>
