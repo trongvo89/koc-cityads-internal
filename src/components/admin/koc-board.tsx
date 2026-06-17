@@ -93,6 +93,89 @@ function statusLabel(s: SimpleStatus): string {
   return STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s;
 }
 
+// ─── Row color palette ──────────────────────────────────────────────────────
+
+const ROW_COLORS: { value: string | null; label: string; bg: string; ring: string }[] = [
+  { value: null,        label: "Không màu",  bg: "bg-white border border-zinc-200",  ring: "ring-zinc-300" },
+  { value: "red",       label: "Đỏ",         bg: "bg-red-200",       ring: "ring-red-400" },
+  { value: "orange",    label: "Cam",         bg: "bg-orange-200",    ring: "ring-orange-400" },
+  { value: "yellow",    label: "Vàng",        bg: "bg-yellow-200",    ring: "ring-yellow-400" },
+  { value: "green",     label: "Xanh lá",     bg: "bg-green-200",     ring: "ring-green-400" },
+  { value: "cyan",      label: "Xanh ngọc",   bg: "bg-cyan-200",      ring: "ring-cyan-400" },
+  { value: "blue",      label: "Xanh dương",  bg: "bg-blue-200",      ring: "ring-blue-400" },
+  { value: "purple",    label: "Tím",         bg: "bg-purple-200",    ring: "ring-purple-400" },
+  { value: "pink",      label: "Hồng",        bg: "bg-pink-200",      ring: "ring-pink-400" },
+];
+
+const ROW_COLOR_BG: Record<string, string> = {
+  red:    "bg-red-50",
+  orange: "bg-orange-50",
+  yellow: "bg-yellow-50",
+  green:  "bg-green-50",
+  cyan:   "bg-cyan-50",
+  blue:   "bg-blue-50",
+  purple: "bg-purple-50",
+  pink:   "bg-pink-50",
+};
+
+function RowColorPicker({
+  current,
+  campaignKocId,
+  campaignId,
+}: {
+  current: string | null;
+  campaignKocId: string;
+  campaignId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  function handlePick(color: string | null) {
+    setOpen(false);
+    startTransition(async () => {
+      await updateCampaignKocField(campaignKocId, campaignId, "row_color", color);
+    });
+  }
+
+  const currentColor = ROW_COLORS.find((c) => c.value === current) ?? ROW_COLORS[0];
+
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title="Tô màu hàng"
+        className={`h-4 w-4 rounded-full border border-zinc-300 transition-all hover:scale-110 ${current ? ROW_COLOR_BG[current]?.replace("50", "300") ?? "bg-white" : "bg-white"} ${isPending ? "opacity-50" : ""}`}
+        style={current ? { backgroundColor: undefined } : undefined}
+      >
+        <span className={`block h-full w-full rounded-full ${current ? (ROW_COLORS.find((c) => c.value === current)?.bg ?? "") : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-5 z-50 bg-white border border-zinc-200 rounded-lg shadow-lg p-2 flex flex-wrap gap-1 w-[130px]">
+          {ROW_COLORS.map((c) => (
+            <button
+              key={c.value ?? "none"}
+              type="button"
+              onClick={() => handlePick(c.value)}
+              title={c.label}
+              className={`h-5 w-5 rounded-full transition-all hover:scale-110 ${c.bg} ${current === c.value ? `ring-2 ${c.ring}` : ""}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Column filter popover ──────────────────────────────────────────────────
 
 type ColumnFilterValue =
@@ -926,7 +1009,7 @@ export default function KocBoard({
             <table className="w-full text-xs min-w-[1200px]">
               <thead className="border-b border-zinc-200 bg-zinc-50">
                 <tr>
-                  <th className="px-2 py-2 text-left font-medium text-zinc-500 w-10">STT</th>
+                  <th className="px-2 py-2 text-left font-medium text-zinc-500 w-16">STT</th>
                   <SortableHeader label="Tài khoản" sortDir={sortKey === "account" ? sortDir : null} onSort={() => toggleSort("account")} />
                   <SortableHeader label="Followers" sortDir={sortKey === "follower" ? sortDir : null} onSort={() => toggleSort("follower")} className="w-24" />
                   <th className="px-2 py-2 text-left font-medium text-zinc-500 w-24">Link Kênh</th>
@@ -1027,19 +1110,28 @@ export default function KocBoard({
                   const hasVideo = !!koc.video_url;
                   const clientSt = CLIENT_STATUS[koc.client_approval_status];
 
-                  const rowBg = simple === "cancelled"
-                    ? "bg-red-50/50"
-                    : simple === "completed"
-                    ? "bg-blue-50/50"
+                  const manualBg = koc.row_color ? ROW_COLOR_BG[koc.row_color] ?? "" : "";
+                  const statusBg = !manualBg
+                    ? (simple === "cancelled" ? "bg-red-50/50" : simple === "completed" ? "bg-blue-50/50" : "")
                     : "";
+                  const rowBg = manualBg || statusBg;
 
                   return (
                     <tr
                       key={koc.campaign_koc_id}
                       className={`border-b border-zinc-100 last:border-0 hover:bg-zinc-50/80 transition-colors ${rowBg} ${isPending ? "opacity-60" : ""}`}
                     >
-                      {/* STT */}
-                      <td className="px-2 py-2 text-zinc-400 font-mono">{idx + 1}</td>
+                      {/* STT + Color */}
+                      <td className="px-2 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <RowColorPicker
+                            current={koc.row_color}
+                            campaignKocId={koc.campaign_koc_id}
+                            campaignId={campaign.campaign_id}
+                          />
+                          <span className="text-zinc-400 font-mono">{idx + 1}</span>
+                        </div>
+                      </td>
 
                       {/* Tài khoản */}
                       <td className="px-2 py-2">

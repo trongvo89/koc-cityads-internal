@@ -55,6 +55,7 @@ export type CampaignKocRow = {
   video_count: number;
   final_link: string | null;
   note_2: string | null;
+  row_color: string | null;
 };
 
 export type CampaignDetail = {
@@ -140,7 +141,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: kocs, error: ke } = await supabase
     .from("campaign_kocs")
     .select(
-      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, client_video_feedback, client_video_feedback_at, client_quality_rating, video_count, final_link, note_2, kocs(name, category, phone, zalo, tiktok_handle, tiktok_url, follower)"
+      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, client_video_feedback, client_video_feedback_at, client_quality_rating, video_count, final_link, note_2, row_color, kocs(name, category, phone, zalo, tiktok_handle, tiktok_url, follower)"
     )
     .eq("campaign_id", id)
     .order("created_at", { ascending: true });
@@ -200,6 +201,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
         video_count: k.video_count ?? 0,
         final_link: k.final_link ?? null,
         note_2: k.note_2 ?? null,
+        row_color: k.row_color ?? null,
         };
       }),
     },
@@ -423,7 +425,7 @@ export async function updateCampaignKocField(
   field: string,
   value: string | number | null
 ): Promise<ActionResult> {
-  const allowed = new Set(["video_count", "final_link", "internal_note", "note_2", "video_url"]);
+  const allowed = new Set(["video_count", "final_link", "internal_note", "note_2", "video_url", "row_color"]);
   if (!allowed.has(field)) return { success: false, error: "Invalid field" };
 
   const supabase = await createClient();

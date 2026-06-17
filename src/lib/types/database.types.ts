@@ -201,6 +201,7 @@ export type Database = {
           video_views: number | null
           final_link: string | null
           note_2: string | null
+          row_color: string | null
         }
         Insert: {
           address_note?: string | null
@@ -246,6 +247,7 @@ export type Database = {
           video_views?: number | null
           final_link?: string | null
           note_2?: string | null
+          row_color?: string | null
         }
         Update: {
           address_note?: string | null
@@ -291,6 +293,7 @@ export type Database = {
           video_views?: number | null
           final_link?: string | null
           note_2?: string | null
+          row_color?: string | null
         }
         Relationships: [
           {
