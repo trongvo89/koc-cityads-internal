@@ -22,6 +22,9 @@ export type KocApplication = {
   reviewed_at: string | null;
   applied_at: string;
   custom_data: Record<string, unknown> | null;
+  agency_status: "approved" | "rejected" | null;
+  agency_reviewed_at: string | null;
+  agency_review_note: string | null;
 };
 
 export type CampaignRegistrationData = {
@@ -126,6 +129,8 @@ export type PublicReviewData = {
     status: "pending" | "approved" | "rejected";
     review_note: string | null;
     applied_at: string;
+    agency_status: "approved" | "rejected" | null;
+    agency_review_note: string | null;
   }>;
 };
 
@@ -194,7 +199,7 @@ export async function addApplicationToCampaign(
   // Fetch the application with koc_id and approval status
   const { data: app, error: appError } = await supabase
     .from("koc_applications" as any)
-    .select("koc_id, status")
+    .select("koc_id, status, agency_status")
     .eq("id", applicationId)
     .single();
 
@@ -214,7 +219,8 @@ export async function addApplicationToCampaign(
   if (existing) return { success: false, error: "KOC đã có trong campaign" };
 
   const appStatus = (app as any).status as string;
-  const alreadyApproved = appStatus === "approved";
+  const agencyStatus = (app as any).agency_status as string | null;
+  const alreadyApproved = appStatus === "approved" || (appStatus === "rejected" && agencyStatus === "approved");
 
   // Add to campaign_kocs — bypass client approval queue if already approved on /review
   const { error: insertError } = await supabase.from("campaign_kocs").insert({
@@ -235,12 +241,12 @@ export async function bulkAddApprovedToCampaign(
 ): Promise<ActionResult<{ added: number; skipped: number }>> {
   const supabase = await createClient();
 
-  // Get all approved applications with koc_id
+  // Get all effectively-approved applications (client approved OR agency overrode)
   const { data: apps, error: appsError } = await supabase
     .from("koc_applications" as any)
     .select("koc_id")
     .eq("campaign_id", campaignId)
-    .eq("status", "approved")
+    .or("status.eq.approved,agency_status.eq.approved")
     .not("koc_id", "is", null);
 
   if (appsError) return { success: false, error: appsError.message };
@@ -278,6 +284,52 @@ export async function bulkAddApprovedToCampaign(
     success: true,
     data: { added: newKocIds.length, skipped: existingIds.size },
   };
+}
+
+export async function submitAgencyReview(
+  applicationId: string,
+  campaignId: string,
+  agencyStatus: "approved" | "rejected",
+  note?: string
+): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("koc_applications" as any)
+    .update({
+      agency_status: agencyStatus,
+      agency_reviewed_at: new Date().toISOString(),
+      agency_review_note: note ?? null,
+    } as any)
+    .eq("id", applicationId)
+    .eq("campaign_id", campaignId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  return { success: true, data: undefined };
+}
+
+export async function resetAgencyReview(
+  applicationId: string,
+  campaignId: string
+): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("koc_applications" as any)
+    .update({
+      agency_status: null,
+      agency_reviewed_at: null,
+      agency_review_note: null,
+    } as any)
+    .eq("id", applicationId)
+    .eq("campaign_id", campaignId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  return { success: true, data: undefined };
 }
 
 export async function getCampaignRegistrationData(

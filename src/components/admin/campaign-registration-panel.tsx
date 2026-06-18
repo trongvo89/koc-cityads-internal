@@ -3,7 +3,7 @@
 import { useState, useTransition, useEffect, useCallback } from "react";
 import {
   Link2, Copy, Check, ChevronDown, ChevronUp, Users, ExternalLink,
-  ToggleLeft, ToggleRight, RefreshCw, Pencil,
+  ToggleLeft, ToggleRight, RefreshCw, Pencil, ShieldCheck, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,8 @@ import {
   addApplicationToCampaign,
   bulkAddApprovedToCampaign,
   updateApplicationInfo,
+  submitAgencyReview,
+  resetAgencyReview,
   type KocApplication,
   type CampaignRegistrationData,
 } from "@/lib/actions/applications";
@@ -283,8 +285,26 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
     });
   }
 
+  function handleAgencyApprove(appId: string) {
+    startTransition(async () => {
+      const result = await submitAgencyReview(appId, campaignId, "approved");
+      if (result.success) load();
+      else alert(result.error);
+    });
+  }
+
+  function handleAgencyReset(appId: string) {
+    startTransition(async () => {
+      const result = await resetAgencyReview(appId, campaignId);
+      if (result.success) load();
+      else alert(result.error);
+    });
+  }
+
   const pendingCount = applications.filter((a) => a.status === "pending").length;
-  const approvedCount = applications.filter((a) => a.status === "approved").length;
+  const approvedCount = applications.filter(
+    (a) => a.status === "approved" || (a.status === "rejected" && a.agency_status === "approved")
+  ).length;
 
   const customFieldKeys = (() => {
     const keys = new Set<string>();
@@ -550,6 +570,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                         </th>
                       ))}
                       <th className="text-left px-4 py-2 text-xs text-zinc-500 font-medium">Client duyệt</th>
+                      <th className="text-left px-4 py-2 text-xs text-zinc-500 font-medium">Agency duyệt</th>
                       <th className="text-left px-4 py-2 text-xs text-zinc-500 font-medium">Ngày</th>
                       <th className="px-4 py-2"></th>
                     </tr>
@@ -594,6 +615,39 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                             <p className="text-xs text-zinc-400 mt-0.5 max-w-[120px] truncate">
                               {app.review_note}
                             </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {app.status === "rejected" && !app.agency_status && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                              disabled={isPending}
+                              onClick={() => handleAgencyApprove(app.id)}
+                            >
+                              <ShieldCheck className="h-3 w-3 mr-1" />
+                              Xem xét
+                            </Button>
+                          )}
+                          {app.agency_status === "approved" && (
+                            <div className="flex items-center gap-1">
+                              <Badge variant="info" className="text-xs">
+                                <ShieldCheck className="h-3 w-3 mr-0.5" />
+                                Xem xét
+                              </Badge>
+                              <button
+                                onClick={() => handleAgencyReset(app.id)}
+                                disabled={isPending}
+                                className="p-0.5 text-zinc-400 hover:text-red-500 transition-colors rounded hover:bg-red-50"
+                                title="Hủy xem xét"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+                          {app.status !== "rejected" && !app.agency_status && (
+                            <span className="text-xs text-zinc-300">—</span>
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-xs text-zinc-400">

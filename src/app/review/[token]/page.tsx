@@ -14,8 +14,9 @@ export default async function ReviewPage({
   if (!result.success) notFound();
 
   const { campaign, applications } = result.data;
-  const approved = applications.filter((a) => a.status === "approved").length;
-  const rejected = applications.filter((a) => a.status === "rejected").length;
+  const agencyApproved = applications.filter((a) => a.status === "rejected" && a.agency_status === "approved").length;
+  const approved = applications.filter((a) => a.status === "approved").length + agencyApproved;
+  const rejected = applications.filter((a) => a.status === "rejected" && a.agency_status !== "approved").length;
   const pending  = applications.filter((a) => a.status === "pending").length;
 
   return (
@@ -45,6 +46,11 @@ export default async function ReviewPage({
             <span className="px-3 py-1.5 rounded-full bg-red-500/15 text-red-300 border border-red-400/20">
               {rejected} từ chối
             </span>
+            {agencyApproved > 0 && (
+              <span className="px-3 py-1.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-400/20">
+                {agencyApproved} xem xét
+              </span>
+            )}
             {pending > 0 && (
               <span className="px-3 py-1.5 rounded-full bg-amber-500/15 text-amber-300 border border-amber-400/20">
                 {pending} chờ duyệt

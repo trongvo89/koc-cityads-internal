@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect } from "react";
-import { ExternalLink, Check, X, MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
+import { ExternalLink, Check, X, MessageSquare, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { submitApplicationReview, type PublicReviewData } from "@/lib/actions/applications";
 
@@ -62,10 +62,13 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
   const [note, setNote]               = useState(app.review_note ?? "");
   const [isPending, startTransition]  = useTransition();
 
+  const isAgencyApproved = app.agency_status === "approved";
+
   const animFollower = useCountUp(app.follower_count);
   const animGmv      = useCountUp(app.gmv_30d);
 
   function handleReview(newStatus: "approved" | "rejected") {
+    if (isAgencyApproved) return;
     startTransition(async () => {
       const result = await submitApplicationReview(reviewToken, app.id, newStatus, note || undefined);
       if (result.success) {
@@ -77,12 +80,14 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
 
   /* Top accent bar color */
   const accentBar =
+    isAgencyApproved     ? "bg-blue-500"     :
     status === "approved" ? "bg-emerald-500" :
     status === "rejected" ? "bg-red-500"     :
     "brand-gradient";
 
   /* Card border */
   const cardBorder =
+    isAgencyApproved     ? "border-blue-200"     :
     status === "approved" ? "border-emerald-200" :
     status === "rejected" ? "border-red-200"     :
     "border-zinc-200";
@@ -110,8 +115,17 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
               <ExternalLink className="h-3 w-3 text-zinc-400 group-hover:text-sky-500 flex-shrink-0" />
             </a>
             <p className="text-xs text-zinc-400 mt-0.5">{app.tiktok_name}</p>
+            {isAgencyApproved && app.agency_review_note && (
+              <p className="text-[10px] text-blue-500 mt-0.5 truncate max-w-[180px]">{app.agency_review_note}</p>
+            )}
           </div>
-          {status !== "pending" && (
+          {isAgencyApproved && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 border text-blue-700 bg-blue-50 border-blue-200 flex items-center gap-0.5">
+              <ShieldCheck className="h-3 w-3" />
+              Xem xét
+            </span>
+          )}
+          {!isAgencyApproved && status !== "pending" && (
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 border ${
               status === "approved"
                 ? "text-emerald-700 bg-emerald-50 border-emerald-200"
@@ -143,7 +157,7 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
       </div>
 
       {/* Comment */}
-      {(showComment || status === "rejected") && (
+      {!isAgencyApproved && (showComment || status === "rejected") && (
         <div className="px-4 pb-3">
           <Textarea
             rows={2}
@@ -156,42 +170,51 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
       )}
 
       {/* Action bar */}
-      <div className="px-4 py-2.5 flex items-center justify-between gap-2 border-t border-zinc-100 bg-zinc-50/50">
-        <button
-          onClick={() => setShowComment((v) => !v)}
-          className="text-xs text-zinc-400 hover:text-zinc-600 flex items-center gap-1 transition-colors"
-        >
-          <MessageSquare className="h-3 w-3" />
-          {showComment ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        </button>
-
-        <div className="flex items-center gap-2">
-          <button
-            disabled={isPending}
-            onClick={() => handleReview("rejected")}
-            className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1 transition-all disabled:opacity-50 border ${
-              status === "rejected"
-                ? "bg-red-600 text-white border-red-600"
-                : "text-zinc-600 border-zinc-200 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
-            }`}
-          >
-            <X className="h-3 w-3" />
-            Từ chối
-          </button>
-          <button
-            disabled={isPending}
-            onClick={() => handleReview("approved")}
-            className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1 transition-all disabled:opacity-50 border ${
-              status === "approved"
-                ? "bg-emerald-600 text-white border-emerald-600"
-                : "text-zinc-600 border-zinc-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
-            }`}
-          >
-            <Check className="h-3 w-3" />
-            Duyệt
-          </button>
+      {isAgencyApproved ? (
+        <div className="px-4 py-2.5 flex items-center justify-center gap-2 border-t border-zinc-100 bg-blue-50/30">
+          <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
+          <span className="text-xs text-blue-600 font-medium">
+            Agency đã xem xét — không thể thay đổi
+          </span>
         </div>
-      </div>
+      ) : (
+        <div className="px-4 py-2.5 flex items-center justify-between gap-2 border-t border-zinc-100 bg-zinc-50/50">
+          <button
+            onClick={() => setShowComment((v) => !v)}
+            className="text-xs text-zinc-400 hover:text-zinc-600 flex items-center gap-1 transition-colors"
+          >
+            <MessageSquare className="h-3 w-3" />
+            {showComment ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          </button>
+
+          <div className="flex items-center gap-2">
+            <button
+              disabled={isPending}
+              onClick={() => handleReview("rejected")}
+              className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1 transition-all disabled:opacity-50 border ${
+                status === "rejected"
+                  ? "bg-red-600 text-white border-red-600"
+                  : "text-zinc-600 border-zinc-200 hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+              }`}
+            >
+              <X className="h-3 w-3" />
+              Từ chối
+            </button>
+            <button
+              disabled={isPending}
+              onClick={() => handleReview("approved")}
+              className={`h-7 px-3 rounded-lg text-xs font-medium flex items-center gap-1 transition-all disabled:opacity-50 border ${
+                status === "approved"
+                  ? "bg-emerald-600 text-white border-emerald-600"
+                  : "text-zinc-600 border-zinc-200 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+              }`}
+            >
+              <Check className="h-3 w-3" />
+              Duyệt
+            </button>
+          </div>
+        </div>
+      )}
 
       <p className="text-[10px] text-zinc-300 text-right px-4 pb-2.5">
         {new Date(app.applied_at).toLocaleDateString("vi-VN")}
@@ -217,7 +240,8 @@ export default function ApplicationReviewClient({ reviewToken, initialApplicatio
     );
   }
 
-  const approved    = apps.filter((a) => a.status === "approved").length;
+  const agencyApprovedCount = apps.filter((a) => a.status === "rejected" && a.agency_status === "approved").length;
+  const approved    = apps.filter((a) => a.status === "approved").length + agencyApprovedCount;
   const packageSize = campaign.package_size;
   const pct         = Math.min((approved / Math.max(packageSize, 1)) * 100, 100);
 
@@ -233,8 +257,13 @@ export default function ApplicationReviewClient({ reviewToken, initialApplicatio
             <div className="flex gap-3 text-xs">
               <span className="text-emerald-600 font-semibold">{approved} duyệt</span>
               <span className="text-red-500 font-semibold">
-                {apps.filter((a) => a.status === "rejected").length} từ chối
+                {apps.filter((a) => a.status === "rejected" && a.agency_status !== "approved").length} từ chối
               </span>
+              {agencyApprovedCount > 0 && (
+                <span className="text-blue-500 font-semibold">
+                  {agencyApprovedCount} xem xét
+                </span>
+              )}
               <span className="text-zinc-400">
                 {apps.filter((a) => a.status === "pending").length} chờ
               </span>
