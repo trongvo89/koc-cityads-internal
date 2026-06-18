@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition, useEffect, useCallback } from "react";
+import { useState, useTransition, useEffect, useCallback, useRef } from "react";
 import {
   Link2, Copy, Check, ChevronDown, ChevronUp, Users, ExternalLink,
-  ToggleLeft, ToggleRight, RefreshCw, Pencil, ShieldCheck, X,
+  ToggleLeft, ToggleRight, RefreshCw, Pencil, ShieldCheck, X, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ import {
   updateApplicationInfo,
   submitAgencyReview,
   resetAgencyReview,
+  updateApplicationRowColor,
   type KocApplication,
   type CampaignRegistrationData,
 } from "@/lib/actions/applications";
@@ -78,6 +79,110 @@ const STYLE_LABEL = {
   show_face_voice: "Show mặt & giọng",
   ugc_style: "UGC & Style",
 } as const;
+
+// ─── Row color palette ──────────────────────────────────────────────────────
+
+const ROW_COLORS: { value: string | null; label: string; bg: string; ring: string }[] = [
+  { value: null,     label: "Không màu",  bg: "bg-white border border-zinc-200",  ring: "ring-zinc-300" },
+  { value: "red",    label: "Đỏ",         bg: "bg-red-200",       ring: "ring-red-400" },
+  { value: "orange", label: "Cam",         bg: "bg-orange-200",    ring: "ring-orange-400" },
+  { value: "yellow", label: "Vàng",        bg: "bg-yellow-200",    ring: "ring-yellow-400" },
+  { value: "green",  label: "Xanh lá",     bg: "bg-green-200",     ring: "ring-green-400" },
+  { value: "cyan",   label: "Xanh ngọc",   bg: "bg-cyan-200",      ring: "ring-cyan-400" },
+  { value: "blue",   label: "Xanh dương",  bg: "bg-blue-200",      ring: "ring-blue-400" },
+  { value: "purple", label: "Tím",         bg: "bg-purple-200",    ring: "ring-purple-400" },
+  { value: "pink",   label: "Hồng",        bg: "bg-pink-200",      ring: "ring-pink-400" },
+];
+
+const ROW_COLOR_BG: Record<string, string> = {
+  red:    "bg-red-50",
+  orange: "bg-orange-50",
+  yellow: "bg-yellow-50",
+  green:  "bg-green-50",
+  cyan:   "bg-cyan-50",
+  blue:   "bg-blue-50",
+  purple: "bg-purple-50",
+  pink:   "bg-pink-50",
+};
+
+function AppRowColorPicker({
+  current,
+  applicationId,
+  campaignId,
+}: {
+  current: string | null;
+  applicationId: string;
+  campaignId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  function handlePick(color: string | null) {
+    setOpen(false);
+    startTransition(async () => {
+      await updateApplicationRowColor(applicationId, campaignId, color);
+    });
+  }
+
+  return (
+    <div ref={ref} className="relative inline-flex">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        title="Tô màu hàng"
+        className={`h-4 w-4 rounded-full border border-zinc-300 transition-all hover:scale-110 ${current ? ROW_COLOR_BG[current]?.replace("50", "300") ?? "bg-white" : "bg-white"} ${isPending ? "opacity-50" : ""}`}
+      >
+        <span className={`block h-full w-full rounded-full ${current ? (ROW_COLORS.find((c) => c.value === current)?.bg ?? "") : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-5 z-50 bg-white border border-zinc-200 rounded-lg shadow-lg p-2 flex flex-wrap gap-1 w-[130px]">
+          {ROW_COLORS.map((c) => (
+            <button
+              key={c.value ?? "none"}
+              type="button"
+              onClick={() => handlePick(c.value)}
+              title={c.label}
+              className={`h-5 w-5 rounded-full transition-all hover:scale-110 ${c.bg} ${current === c.value ? `ring-2 ${c.ring}` : ""}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Filter tabs ────────────────────────────────────────────────────────────
+
+type FilterKey = "all" | "pending" | "client_approved" | "client_rejected" | "agency_approved" | "shortlisted";
+
+const FILTER_TABS: { key: FilterKey; label: string }[] = [
+  { key: "all",              label: "Tất cả" },
+  { key: "pending",          label: "Chờ duyệt" },
+  { key: "client_approved",  label: "Client duyệt" },
+  { key: "client_rejected",  label: "Client từ chối" },
+  { key: "agency_approved",  label: "Agency duyệt" },
+  { key: "shortlisted",      label: "Cân nhắc" },
+];
+
+function filterApps(apps: KocApplication[], filter: FilterKey): KocApplication[] {
+  switch (filter) {
+    case "all":              return apps;
+    case "pending":          return apps.filter((a) => a.status === "pending");
+    case "client_approved":  return apps.filter((a) => a.status === "approved");
+    case "client_rejected":  return apps.filter((a) => a.status === "rejected" && a.agency_status !== "approved");
+    case "agency_approved":  return apps.filter((a) => a.agency_status === "approved");
+    case "shortlisted":      return apps.filter((a) => a.agency_status === "shortlisted");
+  }
+}
 
 // ─── Edit Application Dialog ─────────────────────────────────────────────────
 
@@ -209,6 +314,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
   const [formDirty, setFormDirty] = useState(false);
   const [formSaveMsg, setFormSaveMsg] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [filter, setFilter] = useState<FilterKey>("all");
 
   const baseUrl =
     typeof window !== "undefined" ? window.location.origin : "";
@@ -293,6 +399,14 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
     });
   }
 
+  function handleAgencyShortlist(appId: string) {
+    startTransition(async () => {
+      const result = await submitAgencyReview(appId, campaignId, "shortlisted");
+      if (result.success) load();
+      else alert(result.error);
+    });
+  }
+
   function handleAgencyReset(appId: string) {
     startTransition(async () => {
       const result = await resetAgencyReview(appId, campaignId);
@@ -305,6 +419,17 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
   const approvedCount = applications.filter(
     (a) => a.status === "approved" || (a.status === "rejected" && a.agency_status === "approved")
   ).length;
+
+  const filteredApps = filterApps(applications, filter);
+
+  const filterCounts: Record<FilterKey, number> = {
+    all:              applications.length,
+    pending:          applications.filter((a) => a.status === "pending").length,
+    client_approved:  applications.filter((a) => a.status === "approved").length,
+    client_rejected:  applications.filter((a) => a.status === "rejected" && a.agency_status !== "approved").length,
+    agency_approved:  applications.filter((a) => a.agency_status === "approved").length,
+    shortlisted:      applications.filter((a) => a.agency_status === "shortlisted").length,
+  };
 
   const customFieldKeys = (() => {
     const keys = new Set<string>();
@@ -550,6 +675,30 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
               </div>
             </div>
 
+            {/* Filter tabs */}
+            {applications.length > 0 && (
+              <div className="px-5 pb-3 flex flex-wrap gap-1.5">
+                {FILTER_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setFilter(tab.key)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                      filter === tab.key
+                        ? "bg-zinc-800 text-white"
+                        : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                    }`}
+                  >
+                    {tab.label}
+                    {filterCounts[tab.key] > 0 && (
+                      <span className={`ml-1 ${filter === tab.key ? "text-zinc-300" : "text-zinc-400"}`}>
+                        {filterCounts[tab.key]}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {applications.length === 0 ? (
               <div className="px-5 pb-4 text-sm text-zinc-400 italic">
                 Chưa có đơn đăng ký nào.
@@ -559,6 +708,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-zinc-50 border-t border-zinc-100">
+                      <th className="px-2 py-2 text-xs text-zinc-500 font-medium w-8"></th>
                       <th className="text-left px-4 py-2 text-xs text-zinc-500 font-medium">TikTok</th>
                       <th className="text-right px-4 py-2 text-xs text-zinc-500 font-medium">Followers</th>
                       <th className="text-right px-4 py-2 text-xs text-zinc-500 font-medium">GMV 30d</th>
@@ -576,8 +726,15 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-50">
-                    {applications.map((app) => (
-                      <tr key={app.id} className="hover:bg-zinc-50 transition-colors">
+                    {filteredApps.map((app) => (
+                      <tr key={app.id} className={`hover:bg-zinc-50 transition-colors ${app.row_color ? ROW_COLOR_BG[app.row_color] ?? "" : ""}`}>
+                        <td className="px-2 py-2.5 text-center">
+                          <AppRowColorPicker
+                            current={app.row_color}
+                            applicationId={app.id}
+                            campaignId={campaignId}
+                          />
+                        </td>
                         <td className="px-4 py-2.5">
                           <div>
                             <a
@@ -619,28 +776,56 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                         </td>
                         <td className="px-4 py-2.5">
                           {app.status === "rejected" && !app.agency_status && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
-                              disabled={isPending}
-                              onClick={() => handleAgencyApprove(app.id)}
-                            >
-                              <ShieldCheck className="h-3 w-3 mr-1" />
-                              Xem xét
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                                disabled={isPending}
+                                onClick={() => handleAgencyApprove(app.id)}
+                              >
+                                <ShieldCheck className="h-3 w-3 mr-1" />
+                                Duyệt
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs text-amber-600 border-amber-200 hover:bg-amber-50"
+                                disabled={isPending}
+                                onClick={() => handleAgencyShortlist(app.id)}
+                              >
+                                <Clock className="h-3 w-3 mr-1" />
+                                Cân nhắc
+                              </Button>
+                            </div>
                           )}
                           {app.agency_status === "approved" && (
                             <div className="flex items-center gap-1">
                               <Badge variant="info" className="text-xs">
                                 <ShieldCheck className="h-3 w-3 mr-0.5" />
-                                Xem xét
+                                Agency duyệt
                               </Badge>
                               <button
                                 onClick={() => handleAgencyReset(app.id)}
                                 disabled={isPending}
                                 className="p-0.5 text-zinc-400 hover:text-red-500 transition-colors rounded hover:bg-red-50"
-                                title="Hủy xem xét"
+                                title="Hủy duyệt"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+                          {app.agency_status === "shortlisted" && (
+                            <div className="flex items-center gap-1">
+                              <Badge variant="warning" className="text-xs">
+                                <Clock className="h-3 w-3 mr-0.5" />
+                                Cân nhắc
+                              </Badge>
+                              <button
+                                onClick={() => handleAgencyReset(app.id)}
+                                disabled={isPending}
+                                className="p-0.5 text-zinc-400 hover:text-red-500 transition-colors rounded hover:bg-red-50"
+                                title="Hủy cân nhắc"
                               >
                                 <X className="h-3 w-3" />
                               </button>

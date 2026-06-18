@@ -22,9 +22,10 @@ export type KocApplication = {
   reviewed_at: string | null;
   applied_at: string;
   custom_data: Record<string, unknown> | null;
-  agency_status: "approved" | "rejected" | null;
+  agency_status: "approved" | "rejected" | "shortlisted" | null;
   agency_reviewed_at: string | null;
   agency_review_note: string | null;
+  row_color: string | null;
 };
 
 export type CampaignRegistrationData = {
@@ -289,7 +290,7 @@ export async function bulkAddApprovedToCampaign(
 export async function submitAgencyReview(
   applicationId: string,
   campaignId: string,
-  agencyStatus: "approved" | "rejected",
+  agencyStatus: "approved" | "rejected" | "shortlisted",
   note?: string
 ): Promise<ActionResult> {
   const supabase = await createClient();
@@ -432,6 +433,27 @@ export async function updateApplicationInfo(
 
     if (kocErr) return { success: false, error: kocErr.message };
   }
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  return { success: true, data: undefined };
+}
+
+// ─── Row Color ──────────────────────────────────────────────────────────────
+
+export async function updateApplicationRowColor(
+  applicationId: string,
+  campaignId: string,
+  color: string | null
+): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("koc_applications" as any)
+    .update({ row_color: color } as any)
+    .eq("id", applicationId)
+    .eq("campaign_id", campaignId);
+
+  if (error) return { success: false, error: error.message };
 
   revalidatePath(`/admin/campaigns/${campaignId}`);
   return { success: true, data: undefined };

@@ -48,7 +48,7 @@ export default async function ReviewPage({
             </span>
             {agencyApproved > 0 && (
               <span className="px-3 py-1.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-400/20">
-                {agencyApproved} xem xét
+                {agencyApproved} agency duyệt
               </span>
             )}
             {pending > 0 && (

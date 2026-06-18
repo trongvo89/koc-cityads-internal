@@ -122,7 +122,7 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
           {isAgencyApproved && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 border text-blue-700 bg-blue-50 border-blue-200 flex items-center gap-0.5">
               <ShieldCheck className="h-3 w-3" />
-              Xem xét
+              Agency duyệt
             </span>
           )}
           {!isAgencyApproved && status !== "pending" && (
@@ -174,7 +174,7 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
         <div className="px-4 py-2.5 flex items-center justify-center gap-2 border-t border-zinc-100 bg-blue-50/30">
           <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
           <span className="text-xs text-blue-600 font-medium">
-            Agency đã xem xét — không thể thay đổi
+            Agency đã duyệt — không thể thay đổi
           </span>
         </div>
       ) : (
@@ -261,7 +261,7 @@ export default function ApplicationReviewClient({ reviewToken, initialApplicatio
               </span>
               {agencyApprovedCount > 0 && (
                 <span className="text-blue-500 font-semibold">
-                  {agencyApprovedCount} xem xét
+                  {agencyApprovedCount} agency duyệt
                 </span>
               )}
               <span className="text-zinc-400">
