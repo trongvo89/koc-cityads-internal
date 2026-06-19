@@ -89,6 +89,30 @@ export async function getKocs(): Promise<ActionResult<KocListItem[]>> {
   };
 }
 
+// ─── Lightweight KOC search for application dialog ──────────────────────────
+
+export type KocSearchItem = {
+  koc_id: string;
+  name: string;
+  tiktok_handle: string | null;
+  tiktok_url: string | null;
+  phone: string | null;
+  zalo: string | null;
+  follower: number | null;
+};
+
+export async function searchKocsForApplication(): Promise<ActionResult<KocSearchItem[]>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("kocs")
+    .select("koc_id, name, tiktok_handle, tiktok_url, phone, zalo, follower")
+    .eq("status", "active")
+    .order("name");
+
+  if (error) return { success: false, error: error.message };
+  return { success: true, data: (data ?? []) as KocSearchItem[] };
+}
+
 export async function getKocById(kocId: string): Promise<ActionResult<KocListItem>> {
   const supabase = await createClient();
   const { data, error } = await supabase

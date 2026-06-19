@@ -4,11 +4,19 @@ import { useState, useTransition, useEffect, useCallback, useRef } from "react";
 import {
   Link2, Copy, Check, ChevronDown, ChevronUp, Users, ExternalLink,
   ToggleLeft, ToggleRight, RefreshCw, Pencil, ShieldCheck, X, Clock,
+  Plus, Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -29,9 +37,11 @@ import {
   submitAgencyReview,
   resetAgencyReview,
   updateApplicationRowColor,
+  adminAddKocApplication,
   type KocApplication,
   type CampaignRegistrationData,
 } from "@/lib/actions/applications";
+import { searchKocsForApplication, type KocSearchItem } from "@/lib/actions/kocs";
 
 function formatFollower(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -292,6 +302,235 @@ function EditApplicationDialog({
   );
 }
 
+// ─── Add KOC Application Dialog ─────────────────────────────────────────────
+
+function AddKocApplicationDialog({
+  open,
+  campaignId,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  campaignId: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [kocList, setKocList] = useState<KocSearchItem[]>([]);
+  const [search, setSearch] = useState("");
+  const [selectedKoc, setSelectedKoc] = useState<KocSearchItem | null>(null);
+
+  const [handle, setHandle] = useState("");
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [followers, setFollowers] = useState("");
+  const [gmv, setGmv] = useState("");
+  const [zalo, setZalo] = useState("");
+  const [videoStyle, setVideoStyle] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      searchKocsForApplication().then((r) => {
+        if (r.success) setKocList(r.data);
+      });
+      setSearch("");
+      setSelectedKoc(null);
+      setHandle("");
+      setName("");
+      setUrl("");
+      setFollowers("");
+      setGmv("");
+      setZalo("");
+      setVideoStyle("");
+      setErr(null);
+    }
+  }, [open]);
+
+  function selectKoc(koc: KocSearchItem) {
+    setSelectedKoc(koc);
+    setHandle(koc.tiktok_handle || koc.name || "");
+    setName(koc.name || "");
+    setUrl(koc.tiktok_url || "");
+    setZalo(koc.zalo || koc.phone || "");
+    setFollowers(String(koc.follower ?? 0));
+    setGmv("");
+    setErr(null);
+  }
+
+  function clearSelection() {
+    setSelectedKoc(null);
+    setHandle("");
+    setName("");
+    setUrl("");
+    setZalo("");
+    setFollowers("");
+    setGmv("");
+    setErr(null);
+  }
+
+  function handleSubmit() {
+    if (!handle.trim() || !name.trim() || !url.trim()) {
+      setErr("TikTok Handle, Tên và URL không được trống");
+      return;
+    }
+    setErr(null);
+    startTransition(async () => {
+      const result = await adminAddKocApplication(campaignId, {
+        tiktok_handle: handle.trim(),
+        tiktok_name: name.trim(),
+        tiktok_url: url.trim(),
+        follower_count: Number(followers) || 0,
+        gmv_30d: Number(gmv) || 0,
+        zalo_phone: zalo.trim(),
+        video_style: videoStyle,
+        koc_id: selectedKoc?.koc_id ?? null,
+      });
+      if (result.success) {
+        onSaved();
+        onClose();
+      } else {
+        setErr(result.error);
+      }
+    });
+  }
+
+  const filtered = search.trim()
+    ? kocList.filter((k) => {
+        const q = search.toLowerCase();
+        return (
+          k.name?.toLowerCase().includes(q) ||
+          k.tiktok_handle?.toLowerCase().includes(q) ||
+          k.tiktok_url?.toLowerCase().includes(q)
+        );
+      })
+    : kocList;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Plus className="h-4 w-4 text-zinc-500" />
+            Thêm KOC thủ công
+          </DialogTitle>
+        </DialogHeader>
+
+        {/* KOC search section */}
+        {!selectedKoc && (
+          <div className="space-y-2">
+            <Label className="text-xs text-zinc-600">Tìm KOC có sẵn trong hệ thống</Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-zinc-400" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Tìm theo tên, TikTok handle..."
+                className="h-9 text-sm pl-8"
+              />
+            </div>
+            <div className="max-h-48 overflow-y-auto border border-zinc-200 rounded-md divide-y divide-zinc-50">
+              {filtered.length === 0 ? (
+                <p className="px-3 py-4 text-xs text-zinc-400 text-center">
+                  {kocList.length === 0 ? "Đang tải..." : "Không tìm thấy KOC nào"}
+                </p>
+              ) : (
+                filtered.slice(0, 50).map((koc) => (
+                  <button
+                    key={koc.koc_id}
+                    type="button"
+                    onClick={() => selectKoc(koc)}
+                    className="w-full text-left px-3 py-2 hover:bg-zinc-50 transition-colors flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-zinc-800">{koc.name}</p>
+                      <p className="text-xs text-zinc-400">
+                        {koc.tiktok_handle || koc.tiktok_url || "—"}
+                      </p>
+                    </div>
+                    {koc.follower != null && koc.follower > 0 && (
+                      <span className="text-xs text-zinc-400">{formatFollower(koc.follower)}</span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-zinc-400">
+              Hoặc điền form bên dưới để nhập thủ công
+            </p>
+          </div>
+        )}
+
+        {selectedKoc && (
+          <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
+            <div>
+              <p className="text-sm font-medium text-blue-800">{selectedKoc.name}</p>
+              <p className="text-xs text-blue-500">{selectedKoc.tiktok_handle || selectedKoc.tiktok_url}</p>
+            </div>
+            <button onClick={clearSelection} className="text-blue-400 hover:text-blue-600">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Form fields */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">TikTok Handle <span className="text-red-500">*</span></Label>
+              <Input value={handle} onChange={(e) => setHandle(e.target.value)} placeholder="@handle" className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Tên TikTok <span className="text-red-500">*</span></Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tên hiển thị" className="h-9 text-sm" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">TikTok URL <span className="text-red-500">*</span></Label>
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://tiktok.com/@..." className="h-9 text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Followers</Label>
+              <Input type="number" value={followers} onChange={(e) => setFollowers(e.target.value)} placeholder="10000" className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">GMV 30 ngày</Label>
+              <Input type="number" value={gmv} onChange={(e) => setGmv(e.target.value)} placeholder="100000000" className="h-9 text-sm" />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">SĐT Zalo</Label>
+              <Input value={zalo} onChange={(e) => setZalo(e.target.value)} placeholder="0901234567" className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Phong cách video</Label>
+              <Select value={videoStyle} onValueChange={setVideoStyle}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Chọn..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="show_face_voice">Show mặt & giọng</SelectItem>
+                  <SelectItem value="ugc_style">UGC & Style</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          {err && <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1.5">{err}</p>}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>Hủy</Button>
+          <Button onClick={handleSubmit} disabled={isPending}>
+            {isPending ? "Đang thêm..." : "Thêm KOC"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 interface Props {
   campaignId: string;
 }
@@ -314,6 +553,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
   const [formDirty, setFormDirty] = useState(false);
   const [formSaveMsg, setFormSaveMsg] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [addAppOpen, setAddAppOpen] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const baseUrl =
@@ -652,6 +892,15 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
               </p>
               <div className="flex items-center gap-2">
                 {bulkMsg && <span className="text-xs text-zinc-600">{bulkMsg}</span>}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setAddAppOpen(true)}
+                  className="text-xs h-7"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Thêm KOC
+                </Button>
                 {approvedCount > 0 && (
                   <Button
                     size="sm"
@@ -873,6 +1122,14 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
         app={editApp}
         campaignId={campaignId}
         onClose={() => setEditApp(null)}
+        onSaved={load}
+      />
+
+      {/* Add KOC Application Dialog */}
+      <AddKocApplicationDialog
+        open={addAppOpen}
+        campaignId={campaignId}
+        onClose={() => setAddAppOpen(false)}
         onSaved={load}
       />
     </div>

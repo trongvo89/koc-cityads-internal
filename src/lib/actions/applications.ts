@@ -458,3 +458,79 @@ export async function updateApplicationRowColor(
   revalidatePath(`/admin/campaigns/${campaignId}`);
   return { success: true, data: undefined };
 }
+
+// ─── Admin Manual KOC Application ──────────────────────────────────────────
+
+export async function adminAddKocApplication(
+  campaignId: string,
+  data: {
+    tiktok_handle: string;
+    tiktok_name: string;
+    tiktok_url: string;
+    follower_count: number;
+    gmv_30d: number;
+    zalo_phone: string;
+    video_style: string;
+    koc_id?: string | null;
+  }
+): Promise<ActionResult> {
+  const supabase = await createClient();
+
+  if (!data.tiktok_handle.trim() || !data.tiktok_name.trim() || !data.tiktok_url.trim()) {
+    return { success: false, error: "TikTok Handle, Tên và URL không được trống" };
+  }
+
+  const { data: existing } = await supabase
+    .from("koc_applications" as any)
+    .select("id")
+    .eq("campaign_id", campaignId)
+    .eq("tiktok_url", data.tiktok_url.trim())
+    .maybeSingle();
+
+  if (existing) {
+    return { success: false, error: "KOC này đã đăng ký campaign (trùng TikTok URL)" };
+  }
+
+  let kocId = data.koc_id ?? null;
+  if (!kocId && data.tiktok_url.trim()) {
+    const { data: kocRow, error: kocErr } = await supabase
+      .from("kocs")
+      .upsert(
+        {
+          name: data.tiktok_name.trim(),
+          tiktok_handle: data.tiktok_handle.trim() || null,
+          tiktok_url: data.tiktok_url.trim(),
+          phone: data.zalo_phone.trim() || null,
+          zalo: data.zalo_phone.trim() || null,
+          follower: data.follower_count || null,
+          status: "active",
+        },
+        { onConflict: "tiktok_url" }
+      )
+      .select("koc_id")
+      .single();
+
+    if (kocErr) return { success: false, error: kocErr.message };
+    kocId = kocRow?.koc_id ?? null;
+  }
+
+  const { error: insertErr } = await supabase
+    .from("koc_applications" as any)
+    .insert({
+      campaign_id: campaignId,
+      koc_id: kocId,
+      tiktok_handle: data.tiktok_handle.trim(),
+      tiktok_name: data.tiktok_name.trim(),
+      tiktok_url: data.tiktok_url.trim(),
+      follower_count: data.follower_count || 0,
+      gmv_30d: data.gmv_30d || 0,
+      zalo_phone: data.zalo_phone.trim() || "",
+      video_style: data.video_style || "",
+      status: "pending",
+    } as any);
+
+  if (insertErr) return { success: false, error: insertErr.message };
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  return { success: true, data: undefined };
+}
