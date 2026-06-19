@@ -953,7 +953,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                 Chưa có đơn đăng ký nào.
               </div>
             ) : (
-              <div className="overflow-x-auto overflow-y-visible">
+              <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-zinc-50 border-t border-zinc-100">
