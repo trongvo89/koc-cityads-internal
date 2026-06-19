@@ -686,7 +686,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-lg border border-zinc-200">
+    <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
       <button
         onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-zinc-50 transition-colors text-left"
@@ -953,7 +953,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                 Chưa có đơn đăng ký nào.
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-hidden">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-zinc-50 border-t border-zinc-100">
