@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import KocBoard from "@/components/admin/koc-board";
 import CampaignPaymentPanel from "@/components/admin/campaign-payment-panel";
 import CampaignRegistrationPanel from "@/components/admin/campaign-registration-panel";
+import CampaignBonusPanel from "@/components/admin/campaign-bonus-panel";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Nháp",
@@ -53,7 +54,9 @@ export default async function CampaignDetailPage({
   const { data: profile } = user
     ? await supabase.from("profiles").select("role").eq("id", user.id).single()
     : { data: null };
-  const isInternalUser = ["super_admin", "admin", "operator"].includes(profile?.role ?? "");
+  const userRole = profile?.role ?? "";
+  const isInternalUser = ["super_admin", "admin", "operator"].includes(userRole);
+  const isSuperAdmin = userRole === "super_admin";
 
   const [campaignResult, kocsResult] = await Promise.all([
     getCampaignDetail(id),
@@ -134,6 +137,21 @@ export default async function CampaignDetailPage({
             finalPaidAt={campaign.final_paid_at}
             finalAmount={campaign.final_amount}
             finalInvoice={campaign.final_invoice}
+          />
+        </div>
+      )}
+
+      {/* Bonus panel — super_admin only */}
+      {isSuperAdmin && campaign.contract_value > 0 && (
+        <div className="mb-6">
+          <CampaignBonusPanel
+            campaignId={campaign.campaign_id}
+            tierMonth={campaign.tier_month}
+            tierPercent={campaign.tier_percent}
+            depositAmount={campaign.deposit_amount}
+            finalAmount={campaign.final_amount}
+            bonusSalePct={campaign.bonus_sale_pct}
+            bonusOpsPct={campaign.bonus_ops_pct}
           />
         </div>
       )}

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { updateCampaign } from "@/lib/actions/campaigns";
 import type { CampaignListItem } from "@/lib/actions/campaigns";
+import type { StaffMember } from "@/lib/actions/kpi";
 
 const schema = z.object({
   campaign_name: z.string().min(1, "Tên campaign không được trống"),
@@ -33,17 +34,20 @@ const schema = z.object({
   start_date: z.string().optional().nullable(),
   end_date: z.string().optional().nullable(),
   status: z.enum(["draft", "active", "completed", "paused", "cancelled"]),
+  ngay_chot_hd: z.string().nullable().optional(),
+  assigned_to: z.string().uuid().nullable().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
 
 interface Props {
   open: boolean;
-  campaign: CampaignListItem | null;
+  campaign: (CampaignListItem & { ngay_chot_hd?: string | null; assigned_to?: string | null }) | null;
+  staff: StaffMember[];
   onClose: () => void;
 }
 
-export default function CampaignFormDialog({ open, campaign, onClose }: Props) {
+export default function CampaignFormDialog({ open, campaign, staff, onClose }: Props) {
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -60,6 +64,7 @@ export default function CampaignFormDialog({ open, campaign, onClose }: Props) {
   });
 
   const selectedStatus = watch("status");
+  const selectedAssignedTo = watch("assigned_to");
 
   useEffect(() => {
     if (campaign) {
@@ -71,6 +76,8 @@ export default function CampaignFormDialog({ open, campaign, onClose }: Props) {
         start_date: campaign.start_date ?? undefined,
         end_date: campaign.end_date ?? undefined,
         status: campaign.status,
+        ngay_chot_hd: campaign.ngay_chot_hd ?? undefined,
+        assigned_to: campaign.assigned_to ?? undefined,
       });
     }
     setServerError(null);
@@ -174,6 +181,33 @@ export default function CampaignFormDialog({ open, campaign, onClose }: Props) {
             <div className="space-y-1.5">
               <Label htmlFor="edit_end_date">Ngày kết thúc</Label>
               <Input id="edit_end_date" type="date" {...register("end_date")} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit_ngay_chot_hd">Ngày chốt HĐ</Label>
+              <Input id="edit_ngay_chot_hd" type="date" {...register("ngay_chot_hd")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nhân viên phụ trách</Label>
+              <Select
+                value={selectedAssignedTo ?? ""}
+                onValueChange={(v) =>
+                  setValue("assigned_to", v, { shouldValidate: true })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn nhân viên..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {staff.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.full_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 

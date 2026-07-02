@@ -15,6 +15,7 @@ import {
 import CampaignFormDialog from "@/components/admin/campaign-form-dialog";
 import { deleteCampaign } from "@/lib/actions/campaigns";
 import type { CampaignListItem } from "@/lib/actions/campaigns";
+import type { StaffMember } from "@/lib/actions/kpi";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "Nháp",
@@ -37,8 +38,10 @@ const STATUS_VARIANT: Record<
 
 export default function CampaignsPageClient({
   campaigns: initial,
+  staff,
 }: {
   campaigns: CampaignListItem[];
+  staff: StaffMember[];
 }) {
   const [campaigns, setCampaigns] = useState(initial);
   const [editTarget, setEditTarget] = useState<CampaignListItem | null>(null);
@@ -223,6 +226,7 @@ export default function CampaignsPageClient({
       <CampaignFormDialog
         open={!!editTarget}
         campaign={editTarget}
+        staff={staff}
         onClose={handleEditClose}
       />
 

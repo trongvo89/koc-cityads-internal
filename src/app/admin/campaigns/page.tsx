@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getCampaigns } from "@/lib/actions/campaigns";
+import { getInternalStaff } from "@/lib/actions/kpi";
 import CampaignsPageClient from "@/components/admin/campaigns-page-client";
 
 export const metadata: Metadata = {
@@ -7,7 +8,10 @@ export const metadata: Metadata = {
 };
 
 export default async function CampaignsPage() {
-  const result = await getCampaigns();
+  const [result, staffResult] = await Promise.all([
+    getCampaigns(),
+    getInternalStaff(),
+  ]);
 
   if (!result.success) {
     return (
@@ -18,5 +22,7 @@ export default async function CampaignsPage() {
     );
   }
 
-  return <CampaignsPageClient campaigns={result.data} />;
+  const staff = staffResult.success ? staffResult.data : [];
+
+  return <CampaignsPageClient campaigns={result.data} staff={staff} />;
 }

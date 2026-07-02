@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMonthlyStats, getMonthlyRevenue } from "@/lib/actions/stats";
+import { getKpiPreview, getMonthlyBonusData, getCurrentMonthTierProjection } from "@/lib/actions/kpi";
 import { Badge } from "@/components/ui/badge";
 import MonthPicker from "@/components/admin/month-picker";
+import KpiLockPanel from "@/components/admin/kpi-lock-panel";
 import { Suspense } from "react";
 
 export const metadata: Metadata = {
@@ -70,9 +72,12 @@ export default async function ReportsPage({
   const month =
     params.month && isValidMonth(params.month) ? params.month : currentMonth();
 
-  const [result, revenueResult] = await Promise.all([
+  const [result, revenueResult, kpiResult, bonusResult, projResult] = await Promise.all([
     getMonthlyStats(month),
     getMonthlyRevenue(month),
+    getKpiPreview(month),
+    getMonthlyBonusData(month),
+    getCurrentMonthTierProjection(),
   ]);
 
   if (!result.success) {
@@ -86,6 +91,9 @@ export default async function ReportsPage({
 
   const s = result.data;
   const rev = revenueResult.success ? revenueResult.data : null;
+  const kpi = kpiResult.success ? kpiResult.data : null;
+  const bonus = bonusResult.success ? bonusResult.data : null;
+  const proj = projResult.success ? projResult.data : null;
 
   return (
     <div className="space-y-6">
@@ -152,6 +160,45 @@ export default async function ReportsPage({
         </div>
       </div>
 
+      {/* KPI & Bonus */}
+      {kpi && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <KpiLockPanel data={kpi} />
+          </div>
+          <div className="space-y-4">
+            <div className="bg-amber-50 rounded-lg border border-amber-200 p-4">
+              <p className="text-xs text-amber-600 uppercase tracking-wide font-medium">
+                Tổng bonus cần trả
+              </p>
+              <p className="text-2xl font-bold text-amber-700 mt-1">
+                {bonus?.total_bonus != null
+                  ? formatVND(bonus.total_bonus)
+                  : "Chờ khóa tier"}
+              </p>
+            </div>
+            {proj && (
+              <div className="bg-blue-50 rounded-lg border border-blue-200 p-4">
+                <p className="text-xs text-blue-600 uppercase tracking-wide font-medium">
+                  Tier tháng hiện tại (dự kiến)
+                </p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <p className="text-2xl font-bold text-blue-700">
+                    {formatVND(proj.total_contract_value)}
+                  </p>
+                  <Badge variant={proj.projected_tier >= 13 ? "success" : proj.projected_tier >= 5 ? "warning" : "secondary"}>
+                    {proj.projected_tier}%
+                  </Badge>
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  {proj.campaign_count} campaigns · {proj.is_locked ? "Đã khóa" : "Chưa khóa"}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Thực nhận trong tháng */}
       {rev && (
         <>
@@ -213,6 +260,12 @@ export default async function ReportsPage({
                     <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
                       Ngày nhận
                     </th>
+                    <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                      Nhân viên
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                      Bonus
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -242,6 +295,24 @@ export default async function ReportsPage({
                       <td className="px-4 py-3 text-right text-zinc-500 text-xs">
                         {new Date(p.paid_at).toLocaleDateString("vi-VN")}
                       </td>
+                      <td className="px-4 py-3 text-zinc-600 text-xs">
+                        {(() => {
+                          const bp = bonus?.payments.find(
+                            (bp) => bp.campaign_id === p.campaign_id && bp.payment_type === p.payment_type
+                          );
+                          return bp?.assigned_name ?? <span className="text-zinc-300">—</span>;
+                        })()}
+                      </td>
+                      <td className="px-4 py-3 text-right text-xs font-medium">
+                        {(() => {
+                          const bp = bonus?.payments.find(
+                            (bp) => bp.campaign_id === p.campaign_id && bp.payment_type === p.payment_type
+                          );
+                          if (!bp) return <span className="text-zinc-300">—</span>;
+                          if (bp.bonus_total == null) return <span className="text-amber-600">Chờ khóa tier</span>;
+                          return <span className="text-amber-700">{formatVND(bp.bonus_total)}</span>;
+                        })()}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -258,12 +329,70 @@ export default async function ReportsPage({
                     </td>
                     <td />
                     <td />
+                    <td />
+                    <td className="px-4 py-3 text-right text-sm font-bold text-amber-700">
+                      {bonus?.total_bonus != null ? formatVND(bonus.total_bonus) : "—"}
+                    </td>
                   </tr>
                 </tfoot>
               </table>
             </div>
           )}
         </>
+      )}
+
+      {/* Employee bonus summary */}
+      {bonus && bonus.employee_summaries.length > 0 && (
+        <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-zinc-200 bg-amber-50">
+            <h2 className="text-sm font-semibold text-amber-800">
+              Tổng hợp theo nhân viên
+            </h2>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="border-b border-zinc-200">
+              <tr>
+                <th className="text-left px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                  Nhân viên
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                  Tổng thực nhận
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                  Tổng bonus
+                </th>
+                <th className="text-right px-4 py-3 font-medium text-zinc-500 text-xs uppercase tracking-wide">
+                  Số campaigns
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {bonus.employee_summaries.map((emp) => (
+                <tr
+                  key={emp.employee_id ?? "__unassigned__"}
+                  className="border-b border-zinc-100 last:border-0 hover:bg-zinc-50 transition-colors"
+                >
+                  <td className="px-4 py-3 font-medium text-zinc-900">
+                    {emp.employee_name}
+                  </td>
+                  <td className="px-4 py-3 text-right text-emerald-700 font-medium">
+                    {formatVND(emp.total_received)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium">
+                    {emp.total_bonus != null ? (
+                      <span className="text-amber-700">{formatVND(emp.total_bonus)}</span>
+                    ) : (
+                      <span className="text-amber-600 text-xs">Chờ khóa tier</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right text-zinc-600">
+                    {emp.campaign_count}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* Campaign detail table */}

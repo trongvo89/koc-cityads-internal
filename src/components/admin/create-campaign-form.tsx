@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { createCampaign } from "@/lib/actions/campaigns";
 import type { ClientListItem } from "@/lib/actions/clients";
+import type { StaffMember } from "@/lib/actions/kpi";
 
 const schema = z.object({
   campaign_name: z.string().min(1, "Tên campaign không được trống"),
@@ -28,14 +29,18 @@ const schema = z.object({
   start_date: z.string().optional().nullable(),
   end_date: z.string().optional().nullable(),
   status: z.enum(["draft", "active", "completed", "paused", "cancelled"]),
+  ngay_chot_hd: z.string().min(1, "Ngày chốt HĐ không được trống").nullable().optional(),
+  assigned_to: z.string().uuid("Vui lòng chọn nhân viên").nullable().optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
 
 export default function CreateCampaignForm({
   clients,
+  staff,
 }: {
   clients: ClientListItem[];
+  staff: StaffMember[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -54,6 +59,7 @@ export default function CreateCampaignForm({
 
   const selectedClientId = watch("client_id");
   const selectedStatus = watch("status");
+  const selectedAssignedTo = watch("assigned_to");
 
   function onSubmit(data: FormValues) {
     setServerError(null);
@@ -166,6 +172,39 @@ export default function CreateCampaignForm({
           <div className="space-y-1.5">
             <Label htmlFor="end_date">Ngày kết thúc</Label>
             <Input id="end_date" type="date" {...register("end_date")} />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="ngay_chot_hd">Ngày chốt HĐ</Label>
+            <Input id="ngay_chot_hd" type="date" {...register("ngay_chot_hd")} />
+            {errors.ngay_chot_hd && (
+              <p className="text-xs text-red-500">{errors.ngay_chot_hd.message}</p>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            <Label>Nhân viên phụ trách</Label>
+            <Select
+              value={selectedAssignedTo ?? ""}
+              onValueChange={(v) =>
+                setValue("assigned_to", v, { shouldValidate: true })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Chọn nhân viên..." />
+              </SelectTrigger>
+              <SelectContent>
+                {staff.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.full_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.assigned_to && (
+              <p className="text-xs text-red-500">{errors.assigned_to.message}</p>
+            )}
           </div>
         </div>
 

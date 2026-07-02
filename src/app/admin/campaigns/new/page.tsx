@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { getClients } from "@/lib/actions/clients";
+import { getInternalStaff } from "@/lib/actions/kpi";
 import CreateCampaignForm from "@/components/admin/create-campaign-form";
 
 export const metadata: Metadata = {
@@ -9,8 +10,12 @@ export const metadata: Metadata = {
 };
 
 export default async function NewCampaignPage() {
-  const result = await getClients();
+  const [result, staffResult] = await Promise.all([
+    getClients(),
+    getInternalStaff(),
+  ]);
   const clients = result.success ? result.data : [];
+  const staff = staffResult.success ? staffResult.data : [];
 
   return (
     <div className="max-w-2xl">
@@ -23,7 +28,7 @@ export default async function NewCampaignPage() {
         </Link>
         <h1 className="text-2xl font-bold text-zinc-900">Tạo campaign mới</h1>
       </div>
-      <CreateCampaignForm clients={clients} />
+      <CreateCampaignForm clients={clients} staff={staff} />
     </div>
   );
 }

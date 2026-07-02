@@ -22,6 +22,8 @@ export type CampaignListItem = {
   deposit_paid_at: string | null;
   final_paid_at: string | null;
   created_at: string;
+  ngay_chot_hd: string | null;
+  assigned_to: string | null;
 };
 
 export type CampaignKocRow = {
@@ -76,6 +78,10 @@ export type CampaignDetail = {
   final_invoice: string | null;
   start_date: string | null;
   end_date: string | null;
+  tier_month: string | null;
+  tier_percent: number | null;
+  bonus_sale_pct: number;
+  bonus_ops_pct: number;
   kocs: CampaignKocRow[];
 };
 
@@ -99,7 +105,7 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
 
   const { data, error } = await (supabase
     .from("campaigns")
-    .select("campaign_id, campaign_name, brief, status, package_size, contract_value, deposit_paid_at, final_paid_at, start_date, end_date, created_at, clients(company_name), campaign_kocs(count)")
+    .select("campaign_id, campaign_name, brief, status, package_size, contract_value, deposit_paid_at, final_paid_at, start_date, end_date, created_at, ngay_chot_hd, assigned_to, clients(company_name), campaign_kocs(count)")
     .order("created_at", { ascending: false }) as any) as { data: any[]; error: any };
 
   if (error) return { success: false, error: error.message };
@@ -120,6 +126,8 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
       deposit_paid_at: c.deposit_paid_at ?? null,
       final_paid_at: c.final_paid_at ?? null,
       created_at: c.created_at,
+      ngay_chot_hd: c.ngay_chot_hd ?? null,
+      assigned_to: c.assigned_to ?? null,
     })),
   };
 }
@@ -131,7 +139,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: campaign, error: ce } = await (supabase
     .from("campaigns")
     .select(
-      "campaign_id, campaign_name, client_id, brief, status, source, package_size, contract_value, deposit_paid_at, deposit_amount, deposit_invoice, final_paid_at, final_amount, final_invoice, start_date, end_date, clients(company_name)"
+      "campaign_id, campaign_name, client_id, brief, status, source, package_size, contract_value, deposit_paid_at, deposit_amount, deposit_invoice, final_paid_at, final_amount, final_invoice, start_date, end_date, tier_month, tier_percent, bonus_sale_pct, bonus_ops_pct, clients(company_name)"
     )
     .eq("campaign_id", id)
     .single() as any) as { data: any; error: any };
@@ -168,6 +176,10 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
       final_invoice: campaign.final_invoice ?? null,
       start_date: campaign.start_date,
       end_date: campaign.end_date,
+      tier_month: campaign.tier_month ?? null,
+      tier_percent: campaign.tier_percent != null ? Number(campaign.tier_percent) : null,
+      bonus_sale_pct: Number(campaign.bonus_sale_pct ?? 100),
+      bonus_ops_pct: Number(campaign.bonus_ops_pct ?? 0),
       kocs: (kocs ?? []).map((k) => {
         const kocData = k.kocs as { name: string; category: string[] | null; phone: string | null; zalo: string | null; tiktok_handle: string | null; tiktok_url: string | null; follower: number | null } | null;
         return {
@@ -279,6 +291,8 @@ const CampaignSchema = z.object({
   start_date: z.string().nullable().optional(),
   end_date: z.string().nullable().optional(),
   status: z.enum(["draft", "active", "completed", "paused", "cancelled"]),
+  ngay_chot_hd: z.string().min(1, "Ngày chốt HĐ không được trống").nullable().optional(),
+  assigned_to: z.string().uuid("Vui lòng chọn nhân viên").nullable().optional(),
 });
 
 export type CampaignFormData = z.infer<typeof CampaignSchema>;
@@ -290,12 +304,19 @@ export async function createCampaign(
   if (!parsed.success)
     return { success: false, error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
 
+  const insertData = {
+    ...parsed.data,
+    tier_month: parsed.data.ngay_chot_hd
+      ? parsed.data.ngay_chot_hd.substring(0, 7)
+      : null,
+  };
+
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data, error } = await (supabase
     .from("campaigns")
-    .insert(parsed.data)
+    .insert(insertData as any)
     .select("campaign_id")
-    .single();
+    .single() as any);
 
   if (error) return { success: false, error: error.message };
 
@@ -308,10 +329,35 @@ export async function updateCampaign(
   formData: Partial<CampaignFormData>
 ): Promise<ActionResult> {
   const supabase = await createClient();
-  const { error } = await supabase
+
+  // Guard: if campaign has locked tier, don't allow changing ngay_chot_hd to different month
+  if (formData.ngay_chot_hd) {
+    const { data: current } = await (supabase
+      .from("campaigns")
+      .select("tier_percent, tier_month")
+      .eq("campaign_id", campaignId)
+      .single() as any);
+
+    const newTierMonth = formData.ngay_chot_hd.substring(0, 7);
+    if (current?.tier_percent != null && current.tier_month !== newTierMonth) {
+      return {
+        success: false,
+        error: "Không thể đổi tháng chốt HĐ khi tier đã được khóa",
+      };
+    }
+  }
+
+  const updateData: Record<string, any> = { ...formData };
+  if (formData.ngay_chot_hd !== undefined) {
+    updateData.tier_month = formData.ngay_chot_hd
+      ? formData.ngay_chot_hd.substring(0, 7)
+      : null;
+  }
+
+  const { error } = await (supabase
     .from("campaigns")
-    .update(formData)
-    .eq("campaign_id", campaignId);
+    .update(updateData as any)
+    .eq("campaign_id", campaignId) as any);
 
   if (error) return { success: false, error: error.message };
 
@@ -542,6 +588,16 @@ export async function markPaymentReceived(
     .single();
   if (!["super_admin", "admin", "operator"].includes(profile?.role ?? "")) {
     return { success: false, error: "Không có quyền thực hiện" };
+  }
+
+  // Guard: block payment on cancelled campaigns
+  const { data: campaignCheck } = await supabase
+    .from("campaigns")
+    .select("status")
+    .eq("campaign_id", campaignId)
+    .single();
+  if (campaignCheck?.status === "cancelled") {
+    return { success: false, error: "Campaign đã bị hủy, không thể nhập thanh toán" };
   }
 
   // Store noon UTC on the given date so month attribution is unambiguous
