@@ -15,6 +15,10 @@ import {
   PackageCheck,
   Film,
   Award,
+  Eye,
+  Heart,
+  MessageCircle,
+  Share2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -212,6 +216,79 @@ function ProgressTimeline({ koc }: { koc: ClientKocRow }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// ─── Metrics helpers ─────────────────────────────────────────────────────────
+
+function formatMetric(value: number) {
+  if (value >= 1_000_000) return (value / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+  if (value >= 1_000) return (value / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(value);
+}
+
+function MetricsSummaryBar({ kocs }: { kocs: ClientKocRow[] }) {
+  const totals = kocs.reduce(
+    (acc, k) => ({
+      views: acc.views + (k.video_views ?? 0),
+      likes: acc.likes + (k.video_likes ?? 0),
+      comments: acc.comments + (k.video_comments ?? 0),
+      shares: acc.shares + (k.video_shares ?? 0),
+    }),
+    { views: 0, likes: 0, comments: 0, shares: 0 }
+  );
+
+  if (totals.views === 0 && totals.likes === 0) return null;
+
+  const items = [
+    { icon: Eye, label: "Views", value: totals.views },
+    { icon: Heart, label: "Likes", value: totals.likes },
+    { icon: MessageCircle, label: "Comments", value: totals.comments },
+    { icon: Share2, label: "Shares", value: totals.shares },
+  ].filter((i) => i.value > 0);
+
+  return (
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4 mb-4">
+      <p className="text-xs font-semibold text-blue-700 mb-2">Tổng hợp hiệu quả</p>
+      <div className="flex flex-wrap gap-4">
+        {items.map((item) => (
+          <div key={item.label} className="flex items-center gap-1.5">
+            <item.icon className="h-4 w-4 text-blue-500" />
+            <span className="text-lg font-bold text-zinc-900">{formatMetric(item.value)}</span>
+            <span className="text-xs text-zinc-500">{item.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function KocMetricsInline({ koc }: { koc: ClientKocRow }) {
+  if (!koc.video_views && !koc.video_likes && !koc.video_comments) return null;
+
+  return (
+    <div className="mt-2 flex flex-wrap gap-3 text-xs text-zinc-500">
+      {koc.video_views != null && koc.video_views > 0 && (
+        <span className="flex items-center gap-1">
+          <Eye className="h-3 w-3" /> {formatMetric(koc.video_views)}
+        </span>
+      )}
+      {koc.video_likes != null && koc.video_likes > 0 && (
+        <span className="flex items-center gap-1">
+          <Heart className="h-3 w-3" /> {formatMetric(koc.video_likes)}
+        </span>
+      )}
+      {koc.video_comments != null && koc.video_comments > 0 && (
+        <span className="flex items-center gap-1">
+          <MessageCircle className="h-3 w-3" /> {formatMetric(koc.video_comments)}
+        </span>
+      )}
+      {koc.video_shares != null && koc.video_shares > 0 && (
+        <span className="flex items-center gap-1">
+          <Share2 className="h-3 w-3" /> {formatMetric(koc.video_shares)}
+        </span>
+      )}
     </div>
   );
 }
@@ -581,6 +658,9 @@ function KocCard({
       {/* Progress timeline for approved KOCs */}
       {isApproved && <ProgressTimeline koc={koc} />}
 
+      {/* Video metrics inline */}
+      {isApproved && <KocMetricsInline koc={koc} />}
+
       {/* Rating (once video approved or completed) */}
       {canRate && <RatingSection koc={koc} campaignId={campaignId} />}
 
@@ -723,6 +803,8 @@ export default function KocApprovalBoard({
 
   return (
     <div className="space-y-6">
+      <MetricsSummaryBar kocs={kocs} />
+
       {pending.length > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-1">
           <div className="p-3">

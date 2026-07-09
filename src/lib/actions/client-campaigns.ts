@@ -20,6 +20,10 @@ export type ClientCampaignListItem = {
   koc_count: number;
   pending_approval: number;
   approved_count: number;
+  video_done: number;
+  completed_count: number;
+  total_views: number;
+  total_likes: number;
   start_date: string | null;
   end_date: string | null;
 };
@@ -49,6 +53,11 @@ export type ClientKocRow = {
   client_quality_rating: number | null;
   client_quality_review: string | null;
   client_quality_rated_at: string | null;
+  video_views: number | null;
+  video_likes: number | null;
+  video_comments: number | null;
+  video_shares: number | null;
+  video_gmv: number | null;
 };
 
 export type ClientCampaignDetail = {
@@ -69,6 +78,19 @@ export type ClientMetrics = {
   pending_approval: number;
 };
 
+export type ClientDashboardData = {
+  campaigns: ClientCampaignListItem[];
+  summary: {
+    total_campaigns: number;
+    active_campaigns: number;
+    total_koc_slots: number;
+    total_completed: number;
+    total_pending: number;
+    total_views: number;
+    total_likes: number;
+  };
+};
+
 // ─── Read Actions ─────────────────────────────────────────────────────────────
 
 export async function getClientCampaigns(): Promise<
@@ -87,27 +109,49 @@ export async function getClientCampaigns(): Promise<
   const kocCountMap = new Map<string, number>();
   const pendingMap = new Map<string, number>();
   const approvedMap = new Map<string, number>();
+  const videoDoneMap = new Map<string, number>();
+  const completedMap = new Map<string, number>();
+  const viewsMap = new Map<string, number>();
+  const likesMap = new Map<string, number>();
+
+  const VIDEO_DONE_STATUSES = [
+    "video_submitted", "need_revision", "video_approved", "completed",
+  ];
+  const VISIBLE_STATUSES = [
+    "sent_to_client", "client_approved", "client_rejected",
+    "waiting_address", "address_submitted", "waiting_sample_sent",
+    "sample_sent", "sample_received", "waiting_video",
+    ...VIDEO_DONE_STATUSES,
+  ];
 
   if (ids.length > 0) {
-    const { data: kocs } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: kocs } = await (supabase as any)
       .from("campaign_kocs")
-      .select("campaign_id, client_approval_status")
+      .select("campaign_id, client_approval_status, operation_status, video_views, video_likes")
       .in("campaign_id", ids)
-      // Only sent_to_client or beyond are visible to client
-      .in("operation_status", [
-        "sent_to_client", "client_approved", "client_rejected",
-        "waiting_address", "address_submitted", "waiting_sample_sent",
-        "sample_sent", "sample_received", "waiting_video",
-        "video_submitted", "need_revision", "video_approved", "completed",
-      ]);
+      .in("operation_status", VISIBLE_STATUSES);
 
     for (const k of kocs ?? []) {
-      kocCountMap.set(k.campaign_id, (kocCountMap.get(k.campaign_id) ?? 0) + 1);
+      const cid = k.campaign_id as string;
+      kocCountMap.set(cid, (kocCountMap.get(cid) ?? 0) + 1);
       if (k.client_approval_status === "pending") {
-        pendingMap.set(k.campaign_id, (pendingMap.get(k.campaign_id) ?? 0) + 1);
+        pendingMap.set(cid, (pendingMap.get(cid) ?? 0) + 1);
       }
       if (k.client_approval_status === "approved") {
-        approvedMap.set(k.campaign_id, (approvedMap.get(k.campaign_id) ?? 0) + 1);
+        approvedMap.set(cid, (approvedMap.get(cid) ?? 0) + 1);
+      }
+      if (VIDEO_DONE_STATUSES.includes(k.operation_status)) {
+        videoDoneMap.set(cid, (videoDoneMap.get(cid) ?? 0) + 1);
+      }
+      if (k.operation_status === "completed") {
+        completedMap.set(cid, (completedMap.get(cid) ?? 0) + 1);
+      }
+      if (k.video_views) {
+        viewsMap.set(cid, (viewsMap.get(cid) ?? 0) + Number(k.video_views));
+      }
+      if (k.video_likes) {
+        likesMap.set(cid, (likesMap.get(cid) ?? 0) + Number(k.video_likes));
       }
     }
   }
@@ -122,6 +166,10 @@ export async function getClientCampaigns(): Promise<
       koc_count: kocCountMap.get(c.campaign_id) ?? 0,
       pending_approval: pendingMap.get(c.campaign_id) ?? 0,
       approved_count: approvedMap.get(c.campaign_id) ?? 0,
+      video_done: videoDoneMap.get(c.campaign_id) ?? 0,
+      completed_count: completedMap.get(c.campaign_id) ?? 0,
+      total_views: viewsMap.get(c.campaign_id) ?? 0,
+      total_likes: likesMap.get(c.campaign_id) ?? 0,
       start_date: c.start_date,
       end_date: c.end_date,
     })),
@@ -162,7 +210,8 @@ export async function getClientCampaignDetail(
       start_date: campaign.start_date,
       end_date: campaign.end_date,
       brief: campaign.brief,
-      kocs: (viewRows ?? []).map((r) => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      kocs: (viewRows ?? []).map((r: any) => ({
         campaign_koc_id: r.campaign_koc_id!,
         koc_id: r.koc_id!,
         koc_name: r.name ?? "?",
@@ -187,6 +236,11 @@ export async function getClientCampaignDetail(
         client_quality_rating: r.client_quality_rating,
         client_quality_review: r.client_quality_review,
         client_quality_rated_at: r.client_quality_rated_at,
+        video_views: r.video_views ? Number(r.video_views) : null,
+        video_likes: r.video_likes ? Number(r.video_likes) : null,
+        video_comments: r.video_comments ? Number(r.video_comments) : null,
+        video_shares: r.video_shares ? Number(r.video_shares) : null,
+        video_gmv: r.video_gmv ? Number(r.video_gmv) : null,
       })),
     },
   };
@@ -224,6 +278,26 @@ export async function getClientMetrics(): Promise<ActionResult<ClientMetrics>> {
       pending_approval: pendingApproval,
     },
   };
+}
+
+export async function getClientDashboardData(): Promise<
+  ActionResult<ClientDashboardData>
+> {
+  const result = await getClientCampaigns();
+  if (!result.success) return result;
+
+  const campaigns = result.data;
+  const summary = {
+    total_campaigns: campaigns.length,
+    active_campaigns: campaigns.filter((c) => c.status === "active").length,
+    total_koc_slots: campaigns.reduce((s, c) => s + c.package_size, 0),
+    total_completed: campaigns.reduce((s, c) => s + c.completed_count, 0),
+    total_pending: campaigns.reduce((s, c) => s + c.pending_approval, 0),
+    total_views: campaigns.reduce((s, c) => s + c.total_views, 0),
+    total_likes: campaigns.reduce((s, c) => s + c.total_likes, 0),
+  };
+
+  return { success: true, data: { campaigns, summary } };
 }
 
 // ─── Mutations ────────────────────────────────────────────────────────────────

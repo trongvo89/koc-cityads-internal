@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import ClientSignOutButton from "@/components/client/sign-out-button";
 import CityAdsLogo from "@/components/ui/cityads-logo";
+import ClientNav from "@/components/client/client-nav";
 
 export default async function ClientLayout({
   children,
@@ -41,27 +41,7 @@ export default async function ClientLayout({
           <CityAdsLogo subtitle={companyName || "Client Portal"} variant="dark" />
         </div>
 
-        <nav className="flex-1 p-3">
-          <Link
-            href="/client/campaigns"
-            className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150"
-            style={{ color: "#94a3b8" }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.color = "#e2e8f0";
-              (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.color = "#94a3b8";
-              (e.currentTarget as HTMLElement).style.background = "transparent";
-            }}
-          >
-            <svg className="h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            Campaigns
-          </Link>
-        </nav>
+        <ClientNav />
 
         {/* User footer */}
         <div className="px-3 py-3 mt-auto" style={{ borderTop: "1px solid #162032" }}>
