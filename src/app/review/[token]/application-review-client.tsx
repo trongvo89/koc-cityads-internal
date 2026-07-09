@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
-import { ExternalLink, Check, X, MessageSquare, ChevronDown, ChevronUp, ShieldCheck } from "lucide-react";
+import { useState, useTransition, useEffect, useMemo } from "react";
+import { ExternalLink, Check, X, MessageSquare, ChevronDown, ChevronUp, ShieldCheck, ArrowUp, ArrowDown, SlidersHorizontal } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { submitApplicationReview, type PublicReviewData } from "@/lib/actions/applications";
 
@@ -231,8 +231,59 @@ interface Props {
   campaign: Campaign;
 }
 
+type SortKey = "follower" | "gmv" | null;
+type SortDir = "desc" | "asc";
+
 export default function ApplicationReviewClient({ reviewToken, initialApplications, campaign }: Props) {
   const [apps, setApps] = useState(initialApplications);
+
+  // Filter / sort state (affects the grid only, not the totals)
+  const [sortKey, setSortKey] = useState<SortKey>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [minFollower, setMinFollower] = useState("");
+  const [minGmv, setMinGmv] = useState("");
+
+  function toggleSort(key: "follower" | "gmv") {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    } else {
+      setSortKey(key);
+      setSortDir("desc");
+    }
+  }
+
+  const hasActiveFilters = !!minFollower || !!minGmv || sortKey !== null;
+
+  function clearFilters() {
+    setMinFollower("");
+    setMinGmv("");
+    setSortKey(null);
+    setSortDir("desc");
+  }
+
+  const visibleApps = useMemo(() => {
+    let list = [...apps];
+
+    const minF = Number(minFollower);
+    if (minFollower && !isNaN(minF)) {
+      list = list.filter((a) => a.follower_count >= minF);
+    }
+    const minG = Number(minGmv);
+    if (minGmv && !isNaN(minG)) {
+      list = list.filter((a) => a.gmv_30d >= minG);
+    }
+
+    if (sortKey) {
+      const dir = sortDir === "desc" ? -1 : 1;
+      list.sort((a, b) => {
+        const av = sortKey === "follower" ? a.follower_count : a.gmv_30d;
+        const bv = sortKey === "follower" ? b.follower_count : b.gmv_30d;
+        return (av - bv) * dir;
+      });
+    }
+
+    return list;
+  }, [apps, minFollower, minGmv, sortKey, sortDir]);
 
   function handleStatusChange(id: string, status: Status, note?: string) {
     setApps((prev) =>
@@ -278,13 +329,107 @@ export default function ApplicationReviewClient({ reviewToken, initialApplicatio
         </div>
       )}
 
+      {/* Filter / sort toolbar */}
+      {apps.length > 0 && (
+        <div className="bg-white rounded-2xl border border-zinc-200 p-4 mb-6 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <SlidersHorizontal className="h-3.5 w-3.5 text-zinc-500" />
+            <span className="text-xs font-semibold text-zinc-700">Lọc &amp; sắp xếp</span>
+            <span className="text-xs text-zinc-400 ml-auto">
+              Hiển thị {visibleApps.length}/{apps.length} KOC
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3">
+            {/* Sort chips */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-zinc-400 mr-0.5">Sắp xếp:</span>
+              {(["follower", "gmv"] as const).map((key) => {
+                const active = sortKey === key;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => toggleSort(key)}
+                    className={`h-8 px-2.5 rounded-lg text-xs font-medium flex items-center gap-1 border transition-all ${
+                      active
+                        ? "bg-sky-600 text-white border-sky-600"
+                        : "text-zinc-600 border-zinc-200 hover:border-sky-300 hover:bg-sky-50"
+                    }`}
+                  >
+                    {key === "follower" ? "Followers" : "GMV"}
+                    {active &&
+                      (sortDir === "desc" ? (
+                        <ArrowDown className="h-3 w-3" />
+                      ) : (
+                        <ArrowUp className="h-3 w-3" />
+                      ))}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Min followers */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-zinc-400">Followers tối thiểu</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={minFollower}
+                onChange={(e) => setMinFollower(e.target.value)}
+                placeholder="VD: 10000"
+                className="h-8 w-28 rounded-lg border border-zinc-200 px-2.5 text-xs focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200"
+              />
+            </div>
+
+            {/* Min GMV */}
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] text-zinc-400">GMV tối thiểu</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={minGmv}
+                onChange={(e) => setMinGmv(e.target.value)}
+                placeholder="VD: 5000000"
+                className="h-8 w-32 rounded-lg border border-zinc-200 px-2.5 text-xs focus:outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-200"
+              />
+            </div>
+
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="h-8 px-2.5 rounded-lg text-xs font-medium text-zinc-500 border border-zinc-200 hover:bg-zinc-50 flex items-center gap-1 transition-colors"
+              >
+                <X className="h-3 w-3" />
+                Xóa lọc
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {apps.length === 0 ? (
         <div className="bg-white rounded-2xl border border-zinc-200 p-10 text-center shadow-sm">
           <p className="text-zinc-400 text-sm">Chưa có KOC nào đăng ký.</p>
         </div>
+      ) : visibleApps.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-zinc-200 p-10 text-center shadow-sm">
+          <p className="text-zinc-400 text-sm mb-3">Không có KOC nào khớp bộ lọc.</p>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="text-xs font-medium text-sky-600 hover:text-sky-800 inline-flex items-center gap-1"
+          >
+            <X className="h-3 w-3" />
+            Xóa lọc
+          </button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger">
-          {apps.map((app, i) => (
+          {visibleApps.map((app, i) => (
             <KocCard
               key={app.id}
               app={app}
