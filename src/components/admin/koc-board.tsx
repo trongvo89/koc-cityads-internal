@@ -31,6 +31,7 @@ import {
   removeKocFromCampaign,
   updateCampaignKocStatus,
   updateCampaignKocField,
+  updateCampaignKocLinks,
   updateKocProfile,
   renewMagicLink,
   markAsReminded,
@@ -384,6 +385,138 @@ function EditableCell({
       placeholder={placeholder}
       className={`w-full bg-transparent border-0 border-b border-transparent hover:border-zinc-300 focus:border-zinc-400 focus:outline-none text-xs px-1 py-1 transition-colors ${isPending ? "opacity-50" : ""} ${className ?? ""}`}
     />
+  );
+}
+
+// ─── Final links cell (multiple video links) ──────────────────────────────────
+
+function FinalLinksCell({
+  value,
+  campaignKocId,
+  campaignId,
+}: {
+  value: string[] | null;
+  campaignKocId: string;
+  campaignId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [links, setLinks] = useState<string[]>(value && value.length > 0 ? value : [""]);
+  const [isPending, startTransition] = useTransition();
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  const saved = value ?? [];
+
+  useEffect(() => {
+    setLinks(value && value.length > 0 ? value : [""]);
+  }, [value]);
+
+  // Close popover when clicking outside
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open]);
+
+  function handleSave() {
+    const cleaned = links.map((l) => l.trim()).filter(Boolean);
+    startTransition(async () => {
+      await updateCampaignKocLinks(campaignKocId, campaignId, cleaned);
+      setOpen(false);
+    });
+  }
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full text-left text-xs px-1 py-1 rounded hover:bg-zinc-100 transition-colors flex items-center gap-1 min-h-[26px]"
+      >
+        {saved.length === 0 ? (
+          <span className="text-zinc-400">Link...</span>
+        ) : saved.length === 1 ? (
+          <span className="truncate text-blue-600">{saved[0]}</span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-blue-600">
+            <ExternalLink className="h-3 w-3" />
+            {saved.length} link
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute z-30 top-full left-0 mt-1 w-72 bg-white border border-zinc-200 rounded-lg shadow-lg p-3 space-y-2">
+          <p className="text-xs font-medium text-zinc-600">Link video ({links.filter((l) => l.trim()).length})</p>
+          <div className="space-y-1.5 max-h-56 overflow-y-auto">
+            {links.map((link, idx) => (
+              <div key={idx} className="flex items-center gap-1">
+                <span className="text-[10px] text-zinc-400 w-4 flex-shrink-0">{idx + 1}</span>
+                <Input
+                  value={link}
+                  onChange={(e) => {
+                    const next = [...links];
+                    next[idx] = e.target.value;
+                    setLinks(next);
+                  }}
+                  placeholder="https://..."
+                  className="h-7 text-xs"
+                />
+                {link.trim() && (
+                  <a
+                    href={link.trim()}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-400 hover:text-blue-600 flex-shrink-0"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = links.filter((_, i) => i !== idx);
+                    setLinks(next.length > 0 ? next : [""]);
+                  }}
+                  className="text-zinc-400 hover:text-red-500 flex-shrink-0"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => setLinks([...links, ""])}
+            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Thêm link
+          </button>
+          <div className="flex items-center gap-2 pt-1 border-t border-zinc-100">
+            <Button size="sm" onClick={handleSave} disabled={isPending} className="h-7 text-xs">
+              {isPending ? "Đang lưu..." : "Lưu"}
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setLinks(value && value.length > 0 ? value : [""]);
+                setOpen(false);
+              }}
+              disabled={isPending}
+              className="h-7 text-xs"
+            >
+              Hủy
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -869,7 +1002,7 @@ export default function KocBoard({
     }
     if (fLinkFinal) {
       const q = fLinkFinal.toLowerCase();
-      list = list.filter((k) => (k.final_link?.toLowerCase().includes(q)));
+      list = list.filter((k) => k.final_link?.some((l) => l.toLowerCase().includes(q)));
     }
 
     // Sort
@@ -1206,12 +1339,10 @@ export default function KocBoard({
 
                       {/* Link Final */}
                       <td className="px-2 py-2">
-                        <EditableCell
+                        <FinalLinksCell
                           value={koc.final_link}
-                          field="final_link"
                           campaignKocId={koc.campaign_koc_id}
                           campaignId={campaign.campaign_id}
-                          placeholder="Link..."
                         />
                       </td>
 

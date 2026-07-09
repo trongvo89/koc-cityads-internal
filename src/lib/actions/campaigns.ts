@@ -55,7 +55,7 @@ export type CampaignKocRow = {
   koc_tiktok_url: string | null;
   koc_follower: number | null;
   video_count: number;
-  final_link: string | null;
+  final_link: string[] | null;
   note_2: string | null;
   row_color: string | null;
 };
@@ -211,7 +211,11 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
         client_video_feedback_at: k.client_video_feedback_at,
         client_quality_rating: k.client_quality_rating,
         video_count: k.video_count ?? 0,
-        final_link: k.final_link ?? null,
+        final_link: Array.isArray(k.final_link)
+          ? k.final_link
+          : k.final_link
+          ? [k.final_link]
+          : null,
         note_2: k.note_2 ?? null,
         row_color: k.row_color ?? null,
         };
@@ -471,13 +475,34 @@ export async function updateCampaignKocField(
   field: string,
   value: string | number | null
 ): Promise<ActionResult> {
-  const allowed = new Set(["video_count", "final_link", "internal_note", "note_2", "video_url", "row_color"]);
+  const allowed = new Set(["video_count", "internal_note", "note_2", "video_url", "row_color"]);
   if (!allowed.has(field)) return { success: false, error: "Invalid field" };
 
   const supabase = await createClient();
   const { error } = await supabase
     .from("campaign_kocs")
     .update({ [field]: value } as any)
+    .eq("campaign_koc_id", campaignKocId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  return { success: true, data: undefined };
+}
+
+export async function updateCampaignKocLinks(
+  campaignKocId: string,
+  campaignId: string,
+  links: string[]
+): Promise<ActionResult> {
+  const cleaned = links.map((l) => l.trim()).filter(Boolean);
+  const value = cleaned.length > 0 ? cleaned : null;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("campaign_kocs")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update({ final_link: value } as any)
     .eq("campaign_koc_id", campaignKocId);
 
   if (error) return { success: false, error: error.message };

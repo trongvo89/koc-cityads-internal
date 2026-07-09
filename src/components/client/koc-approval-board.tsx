@@ -658,6 +658,30 @@ function KocCard({
       {/* Progress timeline for approved KOCs */}
       {isApproved && <ProgressTimeline koc={koc} />}
 
+      {/* Final video links */}
+      {isApproved && koc.final_link && koc.final_link.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-zinc-100">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-700 mb-2">
+            <Film className="h-3.5 w-3.5" />
+            Video đã đăng ({koc.final_link.length})
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {koc.final_link.map((link, idx) => (
+              <a
+                key={idx}
+                href={link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md px-2 py-1 transition-colors"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Video {idx + 1}
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Video metrics inline */}
       {isApproved && <KocMetricsInline koc={koc} />}
 

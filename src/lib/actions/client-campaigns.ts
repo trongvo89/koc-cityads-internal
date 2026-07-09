@@ -43,6 +43,7 @@ export type ClientKocRow = {
   client_approval_status: ClientApprovalStatus;
   client_note: string | null;
   video_url: string | null;
+  final_link: string[] | null;
   deadline_date: string | null;
   sample_sent_at: string | null;
   sample_received_at: string | null;
@@ -226,6 +227,11 @@ export async function getClientCampaignDetail(
         client_approval_status: (r.client_approval_status ?? "pending") as ClientApprovalStatus,
         client_note: r.client_note,
         video_url: r.video_url,
+        final_link: Array.isArray(r.final_link)
+          ? r.final_link
+          : r.final_link
+          ? [r.final_link]
+          : null,
         deadline_date: r.deadline_date,
         sample_sent_at: r.sample_sent_at,
         sample_received_at: r.sample_received_at,

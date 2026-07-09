@@ -199,7 +199,7 @@ export type Database = {
           video_url: string | null
           video_count: number
           video_views: number | null
-          final_link: string | null
+          final_link: string[] | null
           note_2: string | null
           row_color: string | null
         }
@@ -245,7 +245,7 @@ export type Database = {
           video_url?: string | null
           video_count?: number
           video_views?: number | null
-          final_link?: string | null
+          final_link?: string[] | null
           note_2?: string | null
           row_color?: string | null
         }
@@ -291,7 +291,7 @@ export type Database = {
           video_url?: string | null
           video_count?: number
           video_views?: number | null
-          final_link?: string | null
+          final_link?: string[] | null
           note_2?: string | null
           row_color?: string | null
         }
