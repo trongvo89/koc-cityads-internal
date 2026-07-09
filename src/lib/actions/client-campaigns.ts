@@ -92,6 +92,26 @@ export type ClientDashboardData = {
   };
 };
 
+// ─── Status groups ────────────────────────────────────────────────────────────
+
+// KOC production milestones — a KOC has "produced a video" once it reaches any
+// of these operation_status values.
+const VIDEO_DONE_STATUSES: OperationStatus[] = [
+  "video_submitted", "need_revision", "video_approved", "completed",
+];
+
+// Operation statuses a client is allowed to see. The board writes "in_progress"
+// for every active KOC (post simplify migration), so it must be included — the
+// old granular statuses are kept for backward compatibility. "cancelled" /
+// "draft" / "failed" stay hidden from clients.
+const VISIBLE_STATUSES: OperationStatus[] = [
+  "in_progress",
+  "sent_to_client", "client_approved", "client_rejected",
+  "waiting_address", "address_submitted", "waiting_sample_sent",
+  "sample_sent", "sample_received", "waiting_video",
+  ...VIDEO_DONE_STATUSES,
+];
+
 // ─── Read Actions ─────────────────────────────────────────────────────────────
 
 export async function getClientCampaigns(): Promise<
@@ -114,16 +134,6 @@ export async function getClientCampaigns(): Promise<
   const completedMap = new Map<string, number>();
   const viewsMap = new Map<string, number>();
   const likesMap = new Map<string, number>();
-
-  const VIDEO_DONE_STATUSES = [
-    "video_submitted", "need_revision", "video_approved", "completed",
-  ];
-  const VISIBLE_STATUSES = [
-    "sent_to_client", "client_approved", "client_rejected",
-    "waiting_address", "address_submitted", "waiting_sample_sent",
-    "sample_sent", "sample_received", "waiting_video",
-    ...VIDEO_DONE_STATUSES,
-  ];
 
   if (ids.length > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -269,7 +279,7 @@ export async function getClientMetrics(): Promise<ActionResult<ClientMetrics>> {
       .from("campaign_kocs")
       .select("client_approval_status")
       .in("campaign_id", ids)
-      .eq("operation_status", "sent_to_client");
+      .in("operation_status", VISIBLE_STATUSES);
 
     pendingApproval = (kocs ?? []).filter(
       (k) => k.client_approval_status === "pending"

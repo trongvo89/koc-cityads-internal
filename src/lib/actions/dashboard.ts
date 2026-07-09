@@ -36,7 +36,8 @@ export async function getDashboardMetrics(): Promise<ActionResult<DashboardMetri
     supabase
       .from("campaign_kocs")
       .select("*", { count: "exact", head: true })
-      .eq("operation_status", "sent_to_client"),
+      .eq("operation_status", "in_progress")
+      .eq("client_approval_status", "pending"),
     supabase
       .from("campaign_kocs")
       .select("*", { count: "exact", head: true })
