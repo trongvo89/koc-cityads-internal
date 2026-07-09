@@ -3,45 +3,45 @@ import { updateSession } from "@/lib/supabase/middleware";
 import type { UserRole } from "@/lib/types/enums";
 
 const ADMIN_ROLES: UserRole[] = ["super_admin", "admin", "operator"];
-const ROLE_COOKIE = "koc_role";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const { supabaseResponse, user, supabase } = await updateSession(request);
 
-  // Helper: get role from cookie cache, fall back to DB once and cache it
+  // Redirect while preserving any auth cookies refreshed by updateSession.
+  // NextResponse.redirect() creates a fresh response, so cookies set on
+  // supabaseResponse would otherwise be dropped — causing session loss/loops.
+  function redirectTo(path: string) {
+    const res = NextResponse.redirect(new URL(path, request.url));
+    supabaseResponse.cookies.getAll().forEach((c) => res.cookies.set(c));
+    return res;
+  }
+
+  // Resolve role from the DB — the single source of truth, matching what the
+  // page layouts check. A cached cookie could go stale (e.g. switching accounts
+  // on the same browser) and disagree with the layout, causing a redirect loop.
+  // Memoized per-request so we query at most once.
+  let roleResolved = false;
+  let roleValue: UserRole | null = null;
   async function getRole(): Promise<UserRole | null> {
     if (!user) return null;
-
-    const cached = request.cookies.get(ROLE_COOKIE)?.value as UserRole | undefined;
-    if (cached) return cached;
-
+    if (roleResolved) return roleValue;
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
-
-    if (profile?.role) {
-      supabaseResponse.cookies.set(ROLE_COOKIE, profile.role, {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 8, // 8 hours, matches typical session length
-      });
-    }
-
-    return (profile?.role as UserRole) ?? null;
+    roleValue = (profile?.role as UserRole) ?? null;
+    roleResolved = true;
+    return roleValue;
   }
 
   // Root redirect
   if (pathname === "/") {
-    if (!user) return NextResponse.redirect(new URL("/login", request.url));
+    if (!user) return redirectTo("/login");
     const role = await getRole();
-    if (!role) return NextResponse.redirect(new URL("/login", request.url));
-    return NextResponse.redirect(
-      new URL(ADMIN_ROLES.includes(role) ? "/admin/dashboard" : "/client/dashboard", request.url)
-    );
+    if (!role) return redirectTo("/login");
+    return redirectTo(ADMIN_ROLES.includes(role) ? "/admin/dashboard" : "/client/dashboard");
   }
 
   // KOC routes — no auth required
@@ -51,36 +51,34 @@ export async function proxy(request: NextRequest) {
   if (pathname.startsWith("/login")) {
     if (user) {
       const role = await getRole();
-      if (role && ADMIN_ROLES.includes(role))
-        return NextResponse.redirect(new URL("/admin/dashboard", request.url));
-      if (role === "client")
-        return NextResponse.redirect(new URL("/client/dashboard", request.url));
+      if (role && ADMIN_ROLES.includes(role)) return redirectTo("/admin/dashboard");
+      if (role === "client") return redirectTo("/client/dashboard");
     }
     return supabaseResponse;
   }
 
   // Protected routes
   if (pathname.startsWith("/admin/") || pathname.startsWith("/client/")) {
-    if (!user) return NextResponse.redirect(new URL("/login", request.url));
+    if (!user) return redirectTo("/login");
 
     const role = await getRole();
-    if (!role) return NextResponse.redirect(new URL("/login", request.url));
+    if (!role) return redirectTo("/login");
 
     if (pathname.startsWith("/admin/") && !ADMIN_ROLES.includes(role))
-      return NextResponse.redirect(new URL("/client/dashboard", request.url));
+      return redirectTo("/client/dashboard");
 
     if (pathname.startsWith("/admin/reports") && role !== "super_admin")
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+      return redirectTo("/admin/dashboard");
 
     if (
       pathname.startsWith("/admin/users") &&
       role !== "super_admin" &&
       role !== "admin"
     )
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+      return redirectTo("/admin/dashboard");
 
     if (pathname.startsWith("/client/") && role !== "client")
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+      return redirectTo("/admin/dashboard");
   }
 
   return supabaseResponse;
