@@ -63,11 +63,6 @@ export default async function ApplyPage({
           </h1>
           <p className="text-sky-200/70 text-sm">
             Đăng ký tham gia campaign
-            {campaign.application_count > 0 && (
-              <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-white/15 text-white/80">
-                {campaign.application_count} KOC đã đăng ký
-              </span>
-            )}
           </p>
         </div>
       </div>
