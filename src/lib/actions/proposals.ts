@@ -487,7 +487,8 @@ export async function convertProposalToCampaign(
       return {
         campaign_id: campaign.campaign_id,
         koc_id,
-        operation_status: "waiting_video" as const,
+        // Post-simplify active status (was the retired "waiting_video").
+        operation_status: "in_progress" as const,
         receiver_name: koc?.name ?? null,
         receiver_phone: koc?.phone ?? null,
         receiver_address: koc?.default_address ?? null,

@@ -472,9 +472,19 @@ export async function updateCampaignKocStatus(
   }
 ): Promise<ActionResult> {
   const supabase = await createClient();
+
+  // Stamp completed_at when a KOC is marked completed (used by the report and
+  // the client timeline); clear it if moved back out of completed.
+  const patch: Record<string, unknown> = { ...updates };
+  if (updates.operation_status === "completed") {
+    patch.completed_at = new Date().toISOString();
+  } else if (updates.operation_status) {
+    patch.completed_at = null;
+  }
+
   const { error } = await supabase
     .from("campaign_kocs")
-    .update(updates)
+    .update(patch as never)
     .eq("campaign_koc_id", campaignKocId);
 
   if (error) return { success: false, error: error.message };
