@@ -106,6 +106,8 @@ export async function submitApplication(
       return { success: false, error: "Link đăng ký không hợp lệ" };
     if (result.error === "registration_closed")
       return { success: false, error: "Đăng ký đã đóng" };
+    if (result.error === "missing_handle")
+      return { success: false, error: "Vui lòng nhập ID/tên TikTok của bạn" };
     return { success: false, error: result.error };
   }
 
@@ -480,15 +482,27 @@ export async function adminAddKocApplication(
     return { success: false, error: "TikTok Handle, Tên và URL không được trống" };
   }
 
-  const { data: existing } = await supabase
+  const { data: existingUrl } = await supabase
     .from("koc_applications" as any)
     .select("id")
     .eq("campaign_id", campaignId)
     .eq("tiktok_url", data.tiktok_url.trim())
     .maybeSingle();
 
-  if (existing) {
+  if (existingUrl) {
     return { success: false, error: "KOC này đã đăng ký campaign (trùng TikTok URL)" };
+  }
+
+  // Identity is the handle — block duplicates by handle (case-insensitive).
+  const { data: existingHandle } = await supabase
+    .from("koc_applications" as any)
+    .select("id")
+    .eq("campaign_id", campaignId)
+    .ilike("tiktok_handle", data.tiktok_handle.trim())
+    .maybeSingle();
+
+  if (existingHandle) {
+    return { success: false, error: "KOC này đã đăng ký campaign (trùng handle TikTok)" };
   }
 
   let kocId = data.koc_id ?? null;
