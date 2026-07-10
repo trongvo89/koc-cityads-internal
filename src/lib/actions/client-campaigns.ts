@@ -85,6 +85,7 @@ export type ClientDashboardData = {
     total_campaigns: number;
     active_campaigns: number;
     total_koc_slots: number;
+    total_kocs: number;
     total_completed: number;
     total_pending: number;
     total_views: number;
@@ -307,6 +308,7 @@ export async function getClientDashboardData(): Promise<
     total_campaigns: campaigns.length,
     active_campaigns: campaigns.filter((c) => c.status === "active").length,
     total_koc_slots: campaigns.reduce((s, c) => s + c.package_size, 0),
+    total_kocs: campaigns.reduce((s, c) => s + c.koc_count, 0),
     total_completed: campaigns.reduce((s, c) => s + c.completed_count, 0),
     total_pending: campaigns.reduce((s, c) => s + c.pending_approval, 0),
     total_views: campaigns.reduce((s, c) => s + c.total_views, 0),

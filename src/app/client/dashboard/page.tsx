@@ -57,7 +57,7 @@ export default async function ClientDashboardPage() {
     },
     {
       label: "KOC đang thực hiện",
-      value: summary.total_koc_slots - summary.total_completed,
+      value: Math.max(summary.total_kocs - summary.total_completed, 0),
       icon: Users,
       color: "text-amber-600",
       bg: "bg-amber-50",
