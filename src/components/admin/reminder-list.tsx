@@ -216,12 +216,10 @@ export default function ReminderList({
   campaignName: string;
   kocs: ReminderKoc[];
 }) {
-  const active = kocs.filter(
-    (k) => !["completed", "failed", "client_rejected"].includes(k.operation_status)
-  );
-  const done = kocs.filter((k) =>
-    ["completed", "failed", "client_rejected"].includes(k.operation_status)
-  );
+  // Terminal statuses post-simplify: completed / cancelled.
+  const TERMINAL = ["completed", "cancelled"];
+  const active = kocs.filter((k) => !TERMINAL.includes(k.operation_status));
+  const done = kocs.filter((k) => TERMINAL.includes(k.operation_status));
 
   if (kocs.length === 0) {
     return (

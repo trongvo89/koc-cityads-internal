@@ -61,7 +61,11 @@ function PortfolioSection({ videos }: { videos: import("@/lib/actions/proposals"
           <div key={v.campaign_koc_id} className="flex items-start gap-2 bg-zinc-50 rounded-lg px-3 py-2 border border-zinc-100">
             <Video className="h-3 w-3 text-zinc-400 mt-0.5 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] text-zinc-500 truncate">{v.campaign_name}</p>
+              <p className="text-[10px] text-zinc-500 truncate">
+                {v.video_submitted_at
+                  ? new Date(v.video_submitted_at).toLocaleDateString("vi-VN")
+                  : "Video mẫu"}
+              </p>
               <a
                 href={v.video_url}
                 target="_blank"

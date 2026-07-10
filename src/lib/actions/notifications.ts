@@ -31,11 +31,13 @@ export async function getAdminNotifications(): Promise<AdminNotifications> {
       .from("proposal_kocs")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .select("proposal_id, client_status, client_reviewed_at") as any,
-    // Campaign KOCs with video submitted, awaiting review
+    // Campaign KOCs with video submitted, awaiting review. Post the simplify
+    // migration operation_status no longer holds "video_submitted" — a submitted
+    // video is signalled by content_status='submitted'.
     supabase
       .from("campaign_kocs")
       .select("campaign_koc_id, campaign_id, video_submitted_at, campaigns!inner(campaign_name)")
-      .eq("operation_status", "video_submitted")
+      .eq("content_status", "submitted")
       .order("video_submitted_at", { ascending: false }),
   ]);
 

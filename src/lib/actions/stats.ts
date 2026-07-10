@@ -115,14 +115,17 @@ export async function getMonthlyStats(
     const bucket = kocMap.get(k.campaign_id) ?? { total: 0, completed: 0, failed: 0 };
     bucket.total++;
     if (k.operation_status === "completed") bucket.completed++;
-    if (k.operation_status === "failed") bucket.failed++;
+    // Post-simplify the terminal "dropped" bucket is `cancelled` (was `failed`).
+    if (k.operation_status === "cancelled") bucket.failed++;
     kocMap.set(k.campaign_id, bucket);
   }
 
   const rows: CampaignStatRow[] = (campaigns ?? []).map((c) => {
     const bucket = kocMap.get(c.campaign_id) ?? { total: 0, completed: 0, failed: 0 };
     const inProgress = bucket.total - bucket.completed - bucket.failed;
-    const rate = bucket.total > 0 ? Math.round((bucket.completed / bucket.total) * 100) : 0;
+    // Completion rate excludes cancelled KOCs from the denominator.
+    const active = bucket.total - bucket.failed;
+    const rate = active > 0 ? Math.round((bucket.completed / active) * 100) : 0;
     return {
       campaign_id: c.campaign_id,
       campaign_name: c.campaign_name,
@@ -142,6 +145,8 @@ export async function getMonthlyStats(
 
   const totalSlots = rows.reduce((s, r) => s + r.koc_total, 0);
   const totalCompleted = rows.reduce((s, r) => s + r.koc_completed, 0);
+  const totalCancelled = rows.reduce((s, r) => s + r.koc_failed, 0);
+  const totalActive = totalSlots - totalCancelled;
 
   return {
     success: true,
@@ -152,7 +157,7 @@ export async function getMonthlyStats(
       total_koc_slots: totalSlots,
       total_koc_completed: totalCompleted,
       overall_completion_rate:
-        totalSlots > 0 ? Math.round((totalCompleted / totalSlots) * 100) : 0,
+        totalActive > 0 ? Math.round((totalCompleted / totalActive) * 100) : 0,
       campaigns: rows,
     },
   };

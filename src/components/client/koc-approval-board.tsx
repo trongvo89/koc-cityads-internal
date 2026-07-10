@@ -31,7 +31,6 @@ import {
   rateKoc,
 } from "@/lib/actions/client-campaigns";
 import type { ClientKocRow } from "@/lib/actions/client-campaigns";
-import type { OperationStatus } from "@/lib/types/enums";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -61,57 +60,35 @@ type Step = {
   reached: (koc: ClientKocRow) => "done" | "current" | "pending";
 };
 
-const SAMPLE_SENT_STATUSES: OperationStatus[] = [
-  "sample_sent",
-  "sample_received",
-  "waiting_video",
-  "video_submitted",
-  "need_revision",
-  "video_approved",
-  "completed",
-];
-
-const SAMPLE_RECEIVED_STATUSES: OperationStatus[] = [
-  "sample_received",
-  "waiting_video",
-  "video_submitted",
-  "need_revision",
-  "video_approved",
-  "completed",
-];
-
-const VIDEO_SUBMITTED_STATUSES: OperationStatus[] = [
-  "video_submitted",
-  "need_revision",
-  "video_approved",
-  "completed",
-];
-
-const VIDEO_APPROVED_STATUSES: OperationStatus[] = [
-  "video_approved",
-  "completed",
-];
+// Post-simplify, operation_status only holds in_progress/completed/cancelled, so
+// the timeline is derived from real signals that still exist: milestone
+// timestamps, content_status, and video links.
+function hasVideo(k: ClientKocRow): boolean {
+  return (
+    !!k.video_url ||
+    (Array.isArray(k.final_link) && k.final_link.length > 0) ||
+    k.content_status === "submitted" ||
+    k.content_status === "approved" ||
+    !!k.video_submitted_at
+  );
+}
+function isCompleted(k: ClientKocRow): boolean {
+  return k.operation_status === "completed" || !!k.completed_at;
+}
 
 const STEPS: Step[] = [
   {
     key: "approved",
     label: "Duyệt KOC",
     icon: Check,
-    reached: (k) =>
-      k.client_approval_status === "approved"
-        ? "done"
-        : k.client_approval_status === "rejected"
-        ? "done" // terminal state, treat as completed for the timeline
-        : "current",
+    reached: (k) => (k.client_approval_status === "pending" ? "current" : "done"),
   },
   {
     key: "sample_sent",
     label: "Đã gửi sản phẩm",
     icon: Truck,
     reached: (k) => {
-      if (k.operation_status && SAMPLE_SENT_STATUSES.includes(k.operation_status)) {
-        return "done";
-      }
+      if (k.sample_sent_at || k.sample_received_at || hasVideo(k) || isCompleted(k)) return "done";
       return k.client_approval_status === "approved" ? "current" : "pending";
     },
   },
@@ -120,10 +97,8 @@ const STEPS: Step[] = [
     label: "KOC nhận sản phẩm",
     icon: PackageCheck,
     reached: (k) => {
-      if (k.operation_status && SAMPLE_RECEIVED_STATUSES.includes(k.operation_status)) {
-        return "done";
-      }
-      return k.operation_status === "sample_sent" ? "current" : "pending";
+      if (k.sample_received_at || hasVideo(k) || isCompleted(k)) return "done";
+      return k.sample_sent_at ? "current" : "pending";
     },
   },
   {
@@ -131,30 +106,17 @@ const STEPS: Step[] = [
     label: "KOC nộp video",
     icon: Film,
     reached: (k) => {
-      if (k.operation_status && VIDEO_SUBMITTED_STATUSES.includes(k.operation_status)) {
-        return "done";
-      }
-      return k.operation_status === "waiting_video" ||
-        k.operation_status === "sample_received"
-        ? "current"
-        : "pending";
+      if (hasVideo(k) || isCompleted(k)) return "done";
+      return k.sample_received_at ? "current" : "pending";
     },
   },
   {
-    key: "video_approved",
-    label: "Video được duyệt",
+    key: "completed",
+    label: "Hoàn thành",
     icon: Award,
     reached: (k) => {
-      if (k.operation_status && VIDEO_APPROVED_STATUSES.includes(k.operation_status)) {
-        return "done";
-      }
-      if (
-        k.operation_status === "video_submitted" ||
-        k.operation_status === "need_revision"
-      ) {
-        return "current";
-      }
-      return "pending";
+      if (isCompleted(k)) return "done";
+      return hasVideo(k) ? "current" : "pending";
     },
   },
 ];
@@ -523,11 +485,8 @@ function KocCard({
     ? CONTENT_STATUS_MAP[koc.content_status]
     : null;
 
-  // Rating opens once video is approved or completed.
-  const canRate =
-    isApproved &&
-    (koc.operation_status === "video_approved" ||
-      koc.operation_status === "completed");
+  // Rating opens once the KOC has delivered a video (or the campaign completed).
+  const canRate = isApproved && (hasVideo(koc) || isCompleted(koc));
 
   return (
     <div

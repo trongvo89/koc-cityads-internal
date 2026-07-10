@@ -223,11 +223,8 @@ export async function updateKoc(
       })
       .eq("koc_id", kocId)
       .is("receiver_address", null)
-      .in("operation_status", [
-        "sent_to_client",
-        "client_approved",
-        "waiting_address",
-      ]);
+      // Active campaign rows are "in_progress" post-simplify (were granular).
+      .eq("operation_status", "in_progress");
   }
 
   revalidatePath("/admin/kocs");
