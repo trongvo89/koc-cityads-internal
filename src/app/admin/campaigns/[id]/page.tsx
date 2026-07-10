@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Bell, BarChart2 } from "lucide-react";
 import { getCampaignDetail } from "@/lib/actions/campaigns";
+import { getCampaignBonus } from "@/lib/actions/kpi";
 import { getKocs } from "@/lib/actions/kocs";
 import { createClient } from "@/lib/supabase/server";
 import { Button } from "@/components/ui/button";
@@ -58,9 +59,10 @@ export default async function CampaignDetailPage({
   const isInternalUser = ["super_admin", "admin", "operator"].includes(userRole);
   const isSuperAdmin = userRole === "super_admin";
 
-  const [campaignResult, kocsResult] = await Promise.all([
+  const [campaignResult, kocsResult, bonusResult] = await Promise.all([
     getCampaignDetail(id),
     getKocs(),
+    isSuperAdmin ? getCampaignBonus(id) : Promise.resolve(null),
   ]);
 
   if (!campaignResult.success) notFound();
@@ -142,16 +144,16 @@ export default async function CampaignDetailPage({
       )}
 
       {/* Bonus panel — super_admin only */}
-      {isSuperAdmin && campaign.contract_value > 0 && (
+      {isSuperAdmin && bonusResult?.success && campaign.contract_value > 0 && (
         <div className="mb-6">
           <CampaignBonusPanel
             campaignId={campaign.campaign_id}
-            tierMonth={campaign.tier_month}
-            tierPercent={campaign.tier_percent}
+            tierMonth={bonusResult.data.tier_month}
+            tierPercent={bonusResult.data.tier_percent}
             depositAmount={campaign.deposit_amount}
             finalAmount={campaign.final_amount}
-            bonusSalePct={campaign.bonus_sale_pct}
-            bonusOpsPct={campaign.bonus_ops_pct}
+            bonusSalePct={bonusResult.data.bonus_sale_pct}
+            bonusOpsPct={bonusResult.data.bonus_ops_pct}
           />
         </div>
       )}

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { ActionResult } from "@/lib/types/app.types";
+import type { CampaignBonus } from "@/lib/actions/campaigns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -171,14 +172,12 @@ export async function lockMonth(
 
   const { data: campaigns } = await (supabase
     .from("campaigns")
-    .select("contract_value")
-    .eq("tier_month" as AnyQ, month)
-    .neq("status", "cancelled") as AnyQ);
+    .select("campaign_id, contract_value, status")
+    .eq("tier_month" as AnyQ, month) as AnyQ);
 
-  const total = (campaigns ?? []).reduce(
-    (s: number, c: AnyQ) => s + (c.contract_value ?? 0),
-    0
-  );
+  const total = (campaigns ?? [])
+    .filter((c: AnyQ) => c.status !== "cancelled")
+    .reduce((s: number, c: AnyQ) => s + (c.contract_value ?? 0), 0);
   const tier = computeTier(total);
 
   const { data: kpiRow, error: ue } = await (supabase
@@ -199,12 +198,18 @@ export async function lockMonth(
 
   if (ue) return { success: false, error: ue.message };
 
-  const { error: updateErr } = await (supabase
-    .from("campaigns")
-    .update({ tier_percent: tier } as AnyQ)
-    .eq("tier_month" as AnyQ, month) as AnyQ);
-
-  if (updateErr) return { success: false, error: updateErr.message };
+  // Cascade the locked tier onto each campaign's bonus row (super_admin-only
+  // table, RLS-enforced). Upsert only tier_percent — existing split is preserved.
+  const bonusRows = (campaigns ?? []).map((c: AnyQ) => ({
+    campaign_id: c.campaign_id,
+    tier_percent: tier,
+  }));
+  if (bonusRows.length > 0) {
+    const { error: updateErr } = await (supabase
+      .from("campaign_bonus" as AnyQ)
+      .upsert(bonusRows, { onConflict: "campaign_id" }) as AnyQ);
+    if (updateErr) return { success: false, error: updateErr.message };
+  }
 
   await (supabase.from("monthly_kpi_log" as AnyQ).insert({
     monthly_kpi_id: kpiRow.id,
@@ -248,12 +253,19 @@ export async function unlockMonth(
 
   if (ue) return { success: false, error: ue.message };
 
-  const { error: updateErr } = await (supabase
+  // Clear the tier on the month's campaign_bonus rows (super_admin-only table).
+  const { data: monthCampaigns } = await (supabase
     .from("campaigns")
-    .update({ tier_percent: null } as AnyQ)
+    .select("campaign_id")
     .eq("tier_month" as AnyQ, month) as AnyQ);
-
-  if (updateErr) return { success: false, error: updateErr.message };
+  const ids = (monthCampaigns ?? []).map((c: AnyQ) => c.campaign_id);
+  if (ids.length > 0) {
+    const { error: updateErr } = await (supabase
+      .from("campaign_bonus" as AnyQ)
+      .update({ tier_percent: null } as AnyQ)
+      .in("campaign_id", ids) as AnyQ);
+    if (updateErr) return { success: false, error: updateErr.message };
+  }
 
   await (supabase.from("monthly_kpi_log" as AnyQ).insert({
     monthly_kpi_id: kpiRow.id,
@@ -280,7 +292,7 @@ export async function getMonthlyBonusData(
     (supabase
       .from("campaigns")
       .select(
-        "campaign_id, campaign_name, contract_value, deposit_paid_at, deposit_amount, deposit_invoice, assigned_to, tier_percent, bonus_sale_pct, bonus_ops_pct, status, clients(company_name), profiles!campaigns_assigned_to_fkey(full_name)"
+        "campaign_id, campaign_name, contract_value, deposit_paid_at, deposit_amount, deposit_invoice, assigned_to, status, clients(company_name), profiles!campaigns_assigned_to_fkey(full_name)"
       )
       .gte("deposit_paid_at" as AnyQ, start)
       .lt("deposit_paid_at" as AnyQ, end)
@@ -288,7 +300,7 @@ export async function getMonthlyBonusData(
     (supabase
       .from("campaigns")
       .select(
-        "campaign_id, campaign_name, contract_value, final_paid_at, final_amount, final_invoice, assigned_to, tier_percent, bonus_sale_pct, bonus_ops_pct, status, clients(company_name), profiles!campaigns_assigned_to_fkey(full_name)"
+        "campaign_id, campaign_name, contract_value, final_paid_at, final_amount, final_invoice, assigned_to, status, clients(company_name), profiles!campaigns_assigned_to_fkey(full_name)"
       )
       .gte("final_paid_at" as AnyQ, start)
       .lt("final_paid_at" as AnyQ, end)
@@ -298,13 +310,35 @@ export async function getMonthlyBonusData(
   if (depositRes.error) return { success: false, error: depositRes.error.message };
   if (finalRes.error) return { success: false, error: finalRes.error.message };
 
+  // Bonus/tier lives in the super_admin-only campaign_bonus table (RLS-enforced).
+  const bonusIds = Array.from(
+    new Set([...(depositRes.data ?? []), ...(finalRes.data ?? [])].map((c: AnyQ) => c.campaign_id))
+  );
+  const bonusMap = new Map<string, { tier_percent: number | null; bonus_sale_pct: number; bonus_ops_pct: number }>();
+  if (bonusIds.length > 0) {
+    const { data: bonusRows } = await (supabase
+      .from("campaign_bonus" as AnyQ)
+      .select("campaign_id, tier_percent, bonus_sale_pct, bonus_ops_pct")
+      .in("campaign_id", bonusIds) as AnyQ);
+    for (const b of bonusRows ?? []) {
+      bonusMap.set(b.campaign_id, {
+        tier_percent: b.tier_percent != null ? Number(b.tier_percent) : null,
+        bonus_sale_pct: Number(b.bonus_sale_pct ?? 100),
+        bonus_ops_pct: Number(b.bonus_ops_pct ?? 0),
+      });
+    }
+  }
+  const bonusOf = (id: string) =>
+    bonusMap.get(id) ?? { tier_percent: null, bonus_sale_pct: 100, bonus_ops_pct: 0 };
+
   const payments: BonusPaymentRow[] = [];
 
   for (const c of depositRes.data ?? []) {
     const amount = c.deposit_amount ?? Math.floor((c.contract_value ?? 0) / 2);
-    const tierPct = c.tier_percent != null ? Number(c.tier_percent) : null;
-    const salePct = Number(c.bonus_sale_pct ?? 100);
-    const opsPct = Number(c.bonus_ops_pct ?? 0);
+    const b = bonusOf(c.campaign_id);
+    const tierPct = b.tier_percent;
+    const salePct = b.bonus_sale_pct;
+    const opsPct = b.bonus_ops_pct;
     const bonusTotal = tierPct != null ? Math.round((tierPct / 100) * amount) : null;
 
     payments.push({
@@ -330,9 +364,10 @@ export async function getMonthlyBonusData(
 
   for (const c of finalRes.data ?? []) {
     const amount = c.final_amount ?? Math.floor((c.contract_value ?? 0) / 2);
-    const tierPct = c.tier_percent != null ? Number(c.tier_percent) : null;
-    const salePct = Number(c.bonus_sale_pct ?? 100);
-    const opsPct = Number(c.bonus_ops_pct ?? 0);
+    const b = bonusOf(c.campaign_id);
+    const tierPct = b.tier_percent;
+    const salePct = b.bonus_sale_pct;
+    const opsPct = b.bonus_ops_pct;
     const bonusTotal = tierPct != null ? Math.round((tierPct / 100) * amount) : null;
 
     payments.push({
@@ -472,13 +507,50 @@ export async function updateBonusSplit(
   }
 
   const { error } = await (supabase
-    .from("campaigns")
-    .update({ bonus_sale_pct: salePct, bonus_ops_pct: opsPct } as AnyQ)
-    .eq("campaign_id", campaignId) as AnyQ);
+    .from("campaign_bonus" as AnyQ)
+    .upsert(
+      { campaign_id: campaignId, bonus_sale_pct: salePct, bonus_ops_pct: opsPct },
+      { onConflict: "campaign_id" }
+    ) as AnyQ);
 
   if (error) return { success: false, error: error.message };
 
   revalidatePath("/admin/reports");
   revalidatePath(`/admin/campaigns/${campaignId}`);
   return { success: true, data: undefined };
+}
+
+// ─── Per-campaign bonus (super_admin only) ────────────────────────────────────
+
+// Bonus/tier columns are REVOKEd from authenticated and stripped from
+// getCampaignDetail. The campaign detail page fetches them here, gated, and only
+// when the viewer is super_admin.
+export async function getCampaignBonus(
+  campaignId: string
+): Promise<ActionResult<CampaignBonus>> {
+  const { supabase, authorized } = await requireSuperAdmin();
+  if (!authorized) return { success: false, error: "Không có quyền truy cập" };
+
+  const [{ data: camp }, { data: bonus }] = await Promise.all([
+    (supabase
+      .from("campaigns")
+      .select("tier_month")
+      .eq("campaign_id", campaignId)
+      .single() as AnyQ),
+    (supabase
+      .from("campaign_bonus" as AnyQ)
+      .select("tier_percent, bonus_sale_pct, bonus_ops_pct")
+      .eq("campaign_id", campaignId)
+      .maybeSingle() as AnyQ),
+  ]);
+
+  return {
+    success: true,
+    data: {
+      tier_month: camp?.tier_month ?? null,
+      tier_percent: bonus?.tier_percent != null ? Number(bonus.tier_percent) : null,
+      bonus_sale_pct: Number(bonus?.bonus_sale_pct ?? 100),
+      bonus_ops_pct: Number(bonus?.bonus_ops_pct ?? 0),
+    },
+  };
 }

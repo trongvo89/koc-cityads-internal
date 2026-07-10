@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { ActionResult } from "@/lib/types/app.types";
 import type { CampaignStatus, OperationStatus, SampleStatus } from "@/lib/types/enums";
 
@@ -78,11 +79,16 @@ export type CampaignDetail = {
   final_invoice: string | null;
   start_date: string | null;
   end_date: string | null;
+  kocs: CampaignKocRow[];
+};
+
+// Bonus/tier is super_admin-only — fetched separately via getCampaignBonus(),
+// never returned by getCampaignDetail (which any internal user can call).
+export type CampaignBonus = {
   tier_month: string | null;
   tier_percent: number | null;
   bonus_sale_pct: number;
   bonus_ops_pct: number;
-  kocs: CampaignKocRow[];
 };
 
 export type ReminderKoc = {
@@ -139,7 +145,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: campaign, error: ce } = await (supabase
     .from("campaigns")
     .select(
-      "campaign_id, campaign_name, client_id, brief, status, source, package_size, contract_value, deposit_paid_at, deposit_amount, deposit_invoice, final_paid_at, final_amount, final_invoice, start_date, end_date, tier_month, tier_percent, bonus_sale_pct, bonus_ops_pct, clients(company_name)"
+      "campaign_id, campaign_name, client_id, brief, status, source, package_size, contract_value, deposit_paid_at, deposit_amount, deposit_invoice, final_paid_at, final_amount, final_invoice, start_date, end_date, clients(company_name)"
     )
     .eq("campaign_id", id)
     .single() as any) as { data: any; error: any };
@@ -176,10 +182,6 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
       final_invoice: campaign.final_invoice ?? null,
       start_date: campaign.start_date,
       end_date: campaign.end_date,
-      tier_month: campaign.tier_month ?? null,
-      tier_percent: campaign.tier_percent != null ? Number(campaign.tier_percent) : null,
-      bonus_sale_pct: Number(campaign.bonus_sale_pct ?? 100),
-      bonus_ops_pct: Number(campaign.bonus_ops_pct ?? 0),
       kocs: (kocs ?? []).map((k) => {
         const kocData = k.kocs as { name: string; category: string[] | null; phone: string | null; zalo: string | null; tiktok_handle: string | null; tiktok_url: string | null; follower: number | null } | null;
         return {
@@ -334,16 +336,28 @@ export async function updateCampaign(
 ): Promise<ActionResult> {
   const supabase = await createClient();
 
-  // Guard: if campaign has locked tier, don't allow changing ngay_chot_hd to different month
-  if (formData.ngay_chot_hd) {
-    const { data: current } = await (supabase
-      .from("campaigns")
-      .select("tier_percent, tier_month")
-      .eq("campaign_id", campaignId)
-      .single() as any);
+  // Whitelist: only fields defined on CampaignSchema are writable. This strips
+  // any injected keys (e.g. tier_percent/bonus_*) so operators can't tamper with
+  // super_admin-only bonus/tier via a crafted request. (bonus/tier are also
+  // REVOKEd at the DB layer.)
+  const parsed = CampaignSchema.partial().safeParse(formData);
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Dữ liệu không hợp lệ" };
+  }
 
-    const newTierMonth = formData.ngay_chot_hd.substring(0, 7);
-    if (current?.tier_percent != null && current.tier_month !== newTierMonth) {
+  // Guard: if campaign's tier is locked, don't allow changing ngay_chot_hd to a
+  // different month. Bonus/tier lives in the super_admin-only campaign_bonus
+  // table; read lock state via the service-role client (server-side only, exposes
+  // nothing to the caller) so the guard also applies to operator/admin editors.
+  if (parsed.data.ngay_chot_hd) {
+    const admin = createAdminClient() as any;
+    const [{ data: camp }, { data: bonus }] = await Promise.all([
+      admin.from("campaigns").select("tier_month").eq("campaign_id", campaignId).single(),
+      admin.from("campaign_bonus").select("tier_percent").eq("campaign_id", campaignId).maybeSingle(),
+    ]);
+
+    const newTierMonth = parsed.data.ngay_chot_hd.substring(0, 7);
+    if (bonus?.tier_percent != null && camp?.tier_month !== newTierMonth) {
       return {
         success: false,
         error: "Không thể đổi tháng chốt HĐ khi tier đã được khóa",
@@ -351,10 +365,10 @@ export async function updateCampaign(
     }
   }
 
-  const updateData: Record<string, any> = { ...formData };
-  if (formData.ngay_chot_hd !== undefined) {
-    updateData.tier_month = formData.ngay_chot_hd
-      ? formData.ngay_chot_hd.substring(0, 7)
+  const updateData: Record<string, any> = { ...parsed.data };
+  if (parsed.data.ngay_chot_hd !== undefined) {
+    updateData.tier_month = parsed.data.ngay_chot_hd
+      ? parsed.data.ngay_chot_hd.substring(0, 7)
       : null;
   }
 

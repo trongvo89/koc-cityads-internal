@@ -36,6 +36,11 @@ export type UserListItem = {
 };
 
 export async function getUsers(): Promise<ActionResult<UserListItem[]>> {
+  const callerRole = await getCallerRole();
+  if (callerRole !== "super_admin" && callerRole !== "admin") {
+    return { success: false, error: "Không có quyền truy cập" };
+  }
+
   const admin = createAdminClient();
 
   const { data, error } = await admin.rpc("admin_list_users");
