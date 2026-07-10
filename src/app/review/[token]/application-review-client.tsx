@@ -42,6 +42,16 @@ function fVnd(n: number) {
   return String(n);
 }
 
+// Resolve a KOC's TikTok channel URL. tiktok_url can be empty (some campaign
+// forms capture the link in a custom field) or lack a scheme, which turns
+// <a href> into a same-page reload. Fall back to building it from the handle.
+function channelUrl(app: { tiktok_url: string | null; tiktok_handle: string | null }): string | null {
+  const raw = (app.tiktok_url ?? "").trim();
+  if (raw) return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  const handle = (app.tiktok_handle ?? "").trim().replace(/^@+/, "");
+  return handle ? `https://www.tiktok.com/@${handle}` : null;
+}
+
 const STYLE_LABEL: Record<string, string> = {
   show_face_voice: "Show mặt & giọng",
   ugc_style:       "UGC & Style",
@@ -105,15 +115,22 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
         {/* Title row */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex-1 min-w-0">
-            <a
-              href={app.tiktok_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-zinc-900 hover:text-sky-600 flex items-center gap-1.5 text-sm transition-colors group"
-            >
-              {app.tiktok_handle}
-              <ExternalLink className="h-3 w-3 text-zinc-400 group-hover:text-sky-500 flex-shrink-0" />
-            </a>
+            {(() => {
+              const url = channelUrl(app);
+              return url ? (
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-zinc-900 hover:text-sky-600 flex items-center gap-1.5 text-sm transition-colors group"
+                >
+                  {app.tiktok_handle}
+                  <ExternalLink className="h-3 w-3 text-zinc-400 group-hover:text-sky-500 flex-shrink-0" />
+                </a>
+              ) : (
+                <span className="font-semibold text-zinc-900 text-sm">{app.tiktok_handle}</span>
+              );
+            })()}
             <p className="text-xs text-zinc-400 mt-0.5">{app.tiktok_name}</p>
             {isAgencyApproved && app.agency_review_note && (
               <p className="text-[10px] text-blue-500 mt-0.5 truncate max-w-[180px]">{app.agency_review_note}</p>
