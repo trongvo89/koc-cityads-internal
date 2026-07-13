@@ -4,8 +4,9 @@ import { useState, useTransition, useEffect, useCallback, useRef } from "react";
 import {
   Link2, Copy, Check, ChevronDown, ChevronUp, Users, ExternalLink,
   ToggleLeft, ToggleRight, RefreshCw, Pencil, ShieldCheck, X, Clock,
-  Plus, Search,
+  Plus, Search, Upload,
 } from "lucide-react";
+import KocBulkCampaignImportDialog from "@/components/admin/koc-bulk-campaign-import-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -555,6 +556,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
   const [formSaveMsg, setFormSaveMsg] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [addAppOpen, setAddAppOpen] = useState(false);
+  const [bulkImportOpen, setBulkImportOpen] = useState(false);
   const [filter, setFilter] = useState<FilterKey>("all");
 
   const baseUrl =
@@ -902,6 +904,15 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                   <Plus className="h-3 w-3 mr-1" />
                   Thêm KOC
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setBulkImportOpen(true)}
+                  className="text-xs h-7"
+                >
+                  <Upload className="h-3 w-3 mr-1" />
+                  Import từ TikTok
+                </Button>
                 {approvedCount > 0 && (
                   <Button
                     size="sm"
@@ -1139,6 +1150,14 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
         campaignId={campaignId}
         onClose={() => setAddAppOpen(false)}
         onSaved={load}
+      />
+
+      {/* Bulk import from TikTok Dialog */}
+      <KocBulkCampaignImportDialog
+        campaignId={campaignId}
+        open={bulkImportOpen}
+        onClose={() => setBulkImportOpen(false)}
+        onImported={load}
       />
     </div>
   );

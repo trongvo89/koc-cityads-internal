@@ -354,6 +354,163 @@ export async function resetAgencyReview(
   return { success: true, data: undefined };
 }
 
+// ─── Bulk import KOCs (already approved on TikTok) into a campaign ──────────
+
+export type BulkImportKocRow = {
+  tiktok_handle: string;
+  tiktok_name: string;
+  tiktok_url: string;
+  follower_count: number;
+  gmv_30d: number;
+};
+
+export async function bulkImportKocsToCampaign(
+  campaignId: string,
+  rows: BulkImportKocRow[]
+): Promise<ActionResult<{ added: number; skipped: number; errors: string[] }>> {
+  const supabase = await createClient();
+
+  if (rows.length === 0) return { success: false, error: "Không có dòng nào để import" };
+  if (rows.length > 500) return { success: false, error: "Tối đa 500 KOC mỗi lần import" };
+
+  // Normalize + in-batch dedupe by handle.
+  const seen = new Set<string>();
+  const cleaned: BulkImportKocRow[] = [];
+  const errors: string[] = [];
+
+  for (const raw of rows) {
+    let handle = (raw.tiktok_handle ?? "").trim();
+    const url = (raw.tiktok_url ?? "").trim();
+    if (!handle && url) {
+      const m = url.match(/@([\w.-]+)/);
+      if (m) handle = `@${m[1]}`;
+    }
+    if (!handle) {
+      errors.push(`Bỏ qua dòng thiếu handle/URL: "${raw.tiktok_name || url || "?"}"`);
+      continue;
+    }
+    const key = handle.toLowerCase().replace(/^@+/, "");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    cleaned.push({
+      tiktok_handle: handle,
+      tiktok_name: (raw.tiktok_name ?? "").trim() || handle,
+      tiktok_url: url,
+      follower_count: raw.follower_count || 0,
+      gmv_30d: raw.gmv_30d || 0,
+    });
+  }
+
+  if (cleaned.length === 0) {
+    return { success: true, data: { added: 0, skipped: 0, errors } };
+  }
+
+  // Existing applications in this campaign (dedupe key: campaign + normalized handle).
+  const { data: existingApps } = await supabase
+    .from("koc_applications" as any)
+    .select("tiktok_handle")
+    .eq("campaign_id", campaignId);
+  const existingHandles = new Set(
+    ((existingApps ?? []) as any[]).map((a) =>
+      String(a.tiktok_handle ?? "").trim().toLowerCase().replace(/^@+/, "")
+    )
+  );
+
+  let added = 0;
+  let skipped = 0;
+
+  for (const row of cleaned) {
+    const key = row.tiktok_handle.toLowerCase().replace(/^@+/, "");
+    if (existingHandles.has(key)) {
+      skipped++;
+      continue;
+    }
+
+    // Resolve or create the master KOC. The tiktok_url unique index is partial,
+    // so ON CONFLICT can't be used — find-or-insert instead.
+    let kocId: string | null = null;
+    if (row.tiktok_url) {
+      const { data: byUrl } = await supabase
+        .from("kocs")
+        .select("koc_id")
+        .eq("tiktok_url", row.tiktok_url)
+        .maybeSingle();
+      kocId = byUrl?.koc_id ?? null;
+    }
+    if (!kocId) {
+      const { data: byHandle } = await supabase
+        .from("kocs")
+        .select("koc_id")
+        .ilike("tiktok_handle", row.tiktok_handle)
+        .limit(1)
+        .maybeSingle();
+      kocId = (byHandle as any)?.koc_id ?? null;
+    }
+    if (!kocId) {
+      const { data: kocRow, error: kocErr } = await supabase
+        .from("kocs")
+        .insert({
+          name: row.tiktok_name,
+          tiktok_handle: row.tiktok_handle,
+          tiktok_url: row.tiktok_url || null,
+          follower: row.follower_count || null,
+          status: "active",
+        } as any)
+        .select("koc_id")
+        .single();
+      if (kocErr || !kocRow) {
+        errors.push(`${row.tiktok_handle}: ${kocErr?.message ?? "không tạo được KOC"}`);
+        continue;
+      }
+      kocId = (kocRow as any).koc_id;
+    }
+
+    // Application row — holds GMV for the client portal; already approved on TikTok.
+    const { error: appErr } = await supabase.from("koc_applications" as any).insert({
+      campaign_id: campaignId,
+      koc_id: kocId,
+      tiktok_handle: row.tiktok_handle,
+      tiktok_name: row.tiktok_name,
+      tiktok_url: row.tiktok_url,
+      follower_count: row.follower_count,
+      gmv_30d: row.gmv_30d,
+      zalo_phone: "",
+      video_style: "",
+      status: "approved",
+    } as any);
+    if (appErr) {
+      errors.push(`${row.tiktok_handle}: ${appErr.message}`);
+      continue;
+    }
+
+    // Campaign membership — approved, visible in the client portal immediately.
+    const { data: existingCk } = await supabase
+      .from("campaign_kocs")
+      .select("campaign_koc_id")
+      .eq("campaign_id", campaignId)
+      .eq("koc_id", kocId!)
+      .maybeSingle();
+    if (!existingCk) {
+      const { error: ckErr } = await supabase.from("campaign_kocs").insert({
+        campaign_id: campaignId,
+        koc_id: kocId,
+        client_approval_status: "approved",
+        operation_status: "in_progress",
+      } as any);
+      if (ckErr) {
+        errors.push(`${row.tiktok_handle}: ${ckErr.message}`);
+        continue;
+      }
+    }
+
+    existingHandles.add(key);
+    added++;
+  }
+
+  revalidatePath(`/admin/campaigns/${campaignId}`);
+  return { success: true, data: { added, skipped, errors } };
+}
+
 export async function getCampaignRegistrationData(
   campaignId: string
 ): Promise<ActionResult<CampaignRegistrationData>> {
