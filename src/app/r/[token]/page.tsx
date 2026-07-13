@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ExternalLink, Star, Eye, ThumbsUp, MessageCircle, Share2, TrendingUp, Calendar, Users } from "lucide-react";
 import { getPublicReport } from "@/lib/actions/reports";
 import type { PublicReportKoc } from "@/lib/actions/reports";
+import { normalizeUrl } from "@/lib/utils/url";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -88,9 +89,9 @@ function KocCard({ koc }: { koc: PublicReportKoc }) {
 
           {/* Social links */}
           <div className="flex gap-1.5 flex-shrink-0">
-            {koc.koc_tiktok_url && (
+            {normalizeUrl(koc.koc_tiktok_url) && (
               <a
-                href={koc.koc_tiktok_url}
+                href={normalizeUrl(koc.koc_tiktok_url)!}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="h-7 w-7 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center transition-colors"
@@ -101,9 +102,9 @@ function KocCard({ koc }: { koc: PublicReportKoc }) {
                 </svg>
               </a>
             )}
-            {koc.koc_instagram_url && (
+            {normalizeUrl(koc.koc_instagram_url) && (
               <a
-                href={koc.koc_instagram_url}
+                href={normalizeUrl(koc.koc_instagram_url)!}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="h-7 w-7 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg flex items-center justify-center transition-colors"
@@ -121,7 +122,7 @@ function KocCard({ koc }: { koc: PublicReportKoc }) {
       {/* Video link */}
       <div className="px-5 pb-3">
         <a
-          href={koc.video_url}
+          href={normalizeUrl(koc.video_url) ?? "#"}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-lg px-3 py-2 text-sm text-blue-700 font-medium hover:from-blue-100 hover:to-indigo-100 transition-colors group"

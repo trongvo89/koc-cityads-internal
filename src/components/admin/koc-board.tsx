@@ -7,6 +7,7 @@ import {
   Pencil, ArrowUp, ArrowDown, Filter, X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { tiktokChannelUrl } from "@/lib/utils/url";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -1283,12 +1284,15 @@ export default function KocBoard({
 
                       {/* Link Kênh */}
                       <td className="px-2 py-2">
-                        {koc.koc_tiktok_url ? (
-                          <a href={koc.koc_tiktok_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-0.5 truncate">
-                            <ExternalLink className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate">TikTok</span>
-                          </a>
-                        ) : <span className="text-zinc-300">—</span>}
+                        {(() => {
+                          const chUrl = tiktokChannelUrl({ tiktok_url: koc.koc_tiktok_url, tiktok_handle: koc.koc_tiktok_handle });
+                          return chUrl ? (
+                            <a href={chUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-0.5 truncate">
+                              <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate">TikTok</span>
+                            </a>
+                          ) : <span className="text-zinc-300">—</span>;
+                        })()}
                       </td>
 
                       {/* Client */}

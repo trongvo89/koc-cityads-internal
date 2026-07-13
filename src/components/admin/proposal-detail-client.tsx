@@ -35,6 +35,7 @@ import {
 } from "@/lib/actions/proposals";
 import { createClientRecord } from "@/lib/actions/clients";
 import type { ProposalDetail, ProposalKocCard } from "@/lib/actions/proposals";
+import { normalizeUrl } from "@/lib/utils/url";
 import type { KocListItem } from "@/lib/actions/kocs";
 import ClientPicker, { type ClientPickerValue, type ClientOption } from "@/components/admin/client-picker";
 
@@ -156,14 +157,14 @@ function KocCard({
           </div>
 
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {pkoc.tiktok_url && (
-              <a href={pkoc.tiktok_url} target="_blank" rel="noopener noreferrer"
+            {normalizeUrl(pkoc.tiktok_url) && (
+              <a href={normalizeUrl(pkoc.tiktok_url)!} target="_blank" rel="noopener noreferrer"
                 className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
                 <ExternalLink className="h-3 w-3" />TikTok
               </a>
             )}
-            {pkoc.instagram_url && (
-              <a href={pkoc.instagram_url} target="_blank" rel="noopener noreferrer"
+            {normalizeUrl(pkoc.instagram_url) && (
+              <a href={normalizeUrl(pkoc.instagram_url)!} target="_blank" rel="noopener noreferrer"
                 className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
                 <ExternalLink className="h-3 w-3" />Instagram
               </a>

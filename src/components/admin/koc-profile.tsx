@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import KocFormDialog from "@/components/admin/koc-form-dialog";
 import type { KocProfile } from "@/lib/actions/kocs";
+import { normalizeUrl } from "@/lib/utils/url";
 
 // ─── Tier helpers ─────────────────────────────────────────────────────────────
 
@@ -156,20 +157,20 @@ export default function KocProfileClient({ koc }: { koc: KocProfile }) {
 
               {/* Social links */}
               <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                {koc.tiktok_url && (
-                  <a href={koc.tiktok_url} target="_blank" rel="noopener noreferrer"
+                {normalizeUrl(koc.tiktok_url) && (
+                  <a href={normalizeUrl(koc.tiktok_url)!} target="_blank" rel="noopener noreferrer"
                     className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
                     <ExternalLink className="h-3 w-3" />TikTok
                   </a>
                 )}
-                {koc.instagram_url && (
-                  <a href={koc.instagram_url} target="_blank" rel="noopener noreferrer"
+                {normalizeUrl(koc.instagram_url) && (
+                  <a href={normalizeUrl(koc.instagram_url)!} target="_blank" rel="noopener noreferrer"
                     className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
                     <ExternalLink className="h-3 w-3" />Instagram
                   </a>
                 )}
-                {koc.facebook_url && (
-                  <a href={koc.facebook_url} target="_blank" rel="noopener noreferrer"
+                {normalizeUrl(koc.facebook_url) && (
+                  <a href={normalizeUrl(koc.facebook_url)!} target="_blank" rel="noopener noreferrer"
                     className="text-xs text-blue-600 hover:underline flex items-center gap-0.5">
                     <ExternalLink className="h-3 w-3" />Facebook
                   </a>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { submitKocReview, submitProposalComment } from "@/lib/actions/proposals";
 import type { ProposalDetail, ProposalKocCard } from "@/lib/actions/proposals";
+import { normalizeUrl } from "@/lib/utils/url";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -193,20 +194,20 @@ function KocReviewCard({
       {/* Social links */}
       {(pkoc.tiktok_url || pkoc.instagram_url || pkoc.facebook_url) && (
         <div className="px-5 pb-3 flex gap-2 flex-wrap">
-          {pkoc.tiktok_url && (
-            <a href={pkoc.tiktok_url} target="_blank" rel="noopener noreferrer"
+          {normalizeUrl(pkoc.tiktok_url) && (
+            <a href={normalizeUrl(pkoc.tiktok_url)!} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs bg-zinc-900 text-white px-3 py-1.5 rounded-full hover:bg-zinc-700 transition-colors">
               <ExternalLink className="h-3 w-3" />TikTok
             </a>
           )}
-          {pkoc.instagram_url && (
-            <a href={pkoc.instagram_url} target="_blank" rel="noopener noreferrer"
+          {normalizeUrl(pkoc.instagram_url) && (
+            <a href={normalizeUrl(pkoc.instagram_url)!} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-1.5 rounded-full hover:opacity-90 transition-opacity">
               <ExternalLink className="h-3 w-3" />Instagram
             </a>
           )}
-          {pkoc.facebook_url && (
-            <a href={pkoc.facebook_url} target="_blank" rel="noopener noreferrer"
+          {normalizeUrl(pkoc.facebook_url) && (
+            <a href={normalizeUrl(pkoc.facebook_url)!} target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs bg-blue-600 text-white px-3 py-1.5 rounded-full hover:bg-blue-500 transition-colors">
               <ExternalLink className="h-3 w-3" />Facebook
             </a>

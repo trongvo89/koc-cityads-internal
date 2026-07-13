@@ -31,6 +31,7 @@ import {
   rateKoc,
 } from "@/lib/actions/client-campaigns";
 import type { ClientKocRow } from "@/lib/actions/client-campaigns";
+import { normalizeUrl } from "@/lib/utils/url";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -546,39 +547,24 @@ function KocCard({
 
           {/* Social links */}
           <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-            {koc.tiktok_url && (
-              <a
-                href={koc.tiktok_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline flex items-center gap-0.5"
-              >
-                <ExternalLink className="h-3 w-3" />
-                TikTok
-              </a>
-            )}
-            {koc.instagram_url && (
-              <a
-                href={koc.instagram_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline flex items-center gap-0.5"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Instagram
-              </a>
-            )}
-            {koc.facebook_url && (
-              <a
-                href={koc.facebook_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline flex items-center gap-0.5"
-              >
-                <ExternalLink className="h-3 w-3" />
-                Facebook
-              </a>
-            )}
+            {[
+              { url: normalizeUrl(koc.tiktok_url), label: "TikTok" },
+              { url: normalizeUrl(koc.instagram_url), label: "Instagram" },
+              { url: normalizeUrl(koc.facebook_url), label: "Facebook" },
+            ]
+              .filter((s) => s.url)
+              .map((s) => (
+                <a
+                  key={s.label}
+                  href={s.url!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:underline flex items-center gap-0.5"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  {s.label}
+                </a>
+              ))}
           </div>
         </div>
 

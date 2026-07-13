@@ -140,12 +140,24 @@ export async function getClientCampaigns(): Promise<
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: kocs } = await (supabase as any)
       .from("campaign_kocs")
-      .select("campaign_id, client_approval_status, operation_status, video_views, video_likes")
+      .select("campaign_id, client_approval_status, operation_status, video_url, content_status, final_link, video_submitted_at, video_views, video_likes")
       .in("campaign_id", ids)
       .in("operation_status", VISIBLE_STATUSES);
 
+    // A KOC counts as "has produced a video" from real signals (post-simplify
+    // operation_status no longer carries video_submitted/approved).
+    const hasVideo = (k: any) =>
+      !!k.video_url ||
+      (Array.isArray(k.final_link) && k.final_link.length > 0) ||
+      k.content_status === "submitted" ||
+      k.content_status === "approved" ||
+      !!k.video_submitted_at;
+
     for (const k of kocs ?? []) {
       const cid = k.campaign_id as string;
+      // Rejected KOCs are not counted as active slots / in progress.
+      if (k.client_approval_status === "rejected") continue;
+
       kocCountMap.set(cid, (kocCountMap.get(cid) ?? 0) + 1);
       if (k.client_approval_status === "pending") {
         pendingMap.set(cid, (pendingMap.get(cid) ?? 0) + 1);
@@ -153,7 +165,7 @@ export async function getClientCampaigns(): Promise<
       if (k.client_approval_status === "approved") {
         approvedMap.set(cid, (approvedMap.get(cid) ?? 0) + 1);
       }
-      if (VIDEO_DONE_STATUSES.includes(k.operation_status)) {
+      if (hasVideo(k)) {
         videoDoneMap.set(cid, (videoDoneMap.get(cid) ?? 0) + 1);
       }
       if (k.operation_status === "completed") {

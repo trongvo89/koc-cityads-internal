@@ -128,8 +128,10 @@ export default async function ClientDashboardPage() {
               c.package_size > 0
                 ? Math.round((c.completed_count / c.package_size) * 100)
                 : 0;
-            const inProduction =
-              c.approved_count - c.video_done - c.completed_count;
+            // Non-overlapping pipeline: video_done already includes completed
+            // (both are "has a video"). Approved-with-no-video are in production.
+            const inProduction = Math.max(c.approved_count - c.video_done, 0);
+            const videoSubmitted = Math.max(c.video_done - c.completed_count, 0);
 
             return (
               <div
@@ -195,9 +197,9 @@ export default async function ClientDashboardPage() {
                       Sản xuất: {inProduction}
                     </span>
                   )}
-                  {c.video_done > 0 && (
+                  {videoSubmitted > 0 && (
                     <span className="px-2 py-1 rounded-md bg-indigo-50 text-indigo-700 font-medium">
-                      Video nộp: {c.video_done}
+                      Video nộp: {videoSubmitted}
                     </span>
                   )}
                   {c.completed_count > 0 && (

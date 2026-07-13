@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { tiktokChannelUrl } from "@/lib/utils/url";
 import {
   Select,
   SelectContent,
@@ -986,15 +987,22 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                         </td>
                         <td className="px-4 py-2.5">
                           <div>
-                            <a
-                              href={app.tiktok_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm font-medium text-zinc-800 hover:text-blue-600 flex items-center gap-1"
-                            >
-                              {app.tiktok_handle}
-                              <ExternalLink className="h-3 w-3 text-zinc-400" />
-                            </a>
+                            {(() => {
+                              const chUrl = tiktokChannelUrl({ tiktok_url: app.tiktok_url, tiktok_handle: app.tiktok_handle });
+                              return chUrl ? (
+                                <a
+                                  href={chUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm font-medium text-zinc-800 hover:text-blue-600 flex items-center gap-1"
+                                >
+                                  {app.tiktok_handle}
+                                  <ExternalLink className="h-3 w-3 text-zinc-400" />
+                                </a>
+                              ) : (
+                                <span className="text-sm font-medium text-zinc-800">{app.tiktok_handle}</span>
+                              );
+                            })()}
                             <p className="text-xs text-zinc-400">{app.tiktok_name}</p>
                           </div>
                         </td>

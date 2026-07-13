@@ -4,6 +4,7 @@ import { useState, useTransition, useEffect, useMemo } from "react";
 import { ExternalLink, Check, X, MessageSquare, ChevronDown, ChevronUp, ShieldCheck, ArrowUp, ArrowDown, SlidersHorizontal } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { submitApplicationReview, type PublicReviewData } from "@/lib/actions/applications";
+import { tiktokChannelUrl } from "@/lib/utils/url";
 
 type Application = PublicReviewData["applications"][number];
 type Campaign    = PublicReviewData["campaign"];
@@ -42,16 +43,6 @@ function fVnd(n: number) {
   return String(n);
 }
 
-// Resolve a KOC's TikTok channel URL. tiktok_url can be empty (some campaign
-// forms capture the link in a custom field) or lack a scheme, which turns
-// <a href> into a same-page reload. Fall back to building it from the handle.
-function channelUrl(app: { tiktok_url: string | null; tiktok_handle: string | null }): string | null {
-  const raw = (app.tiktok_url ?? "").trim();
-  if (raw) return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-  const handle = (app.tiktok_handle ?? "").trim().replace(/^@+/, "");
-  return handle ? `https://www.tiktok.com/@${handle}` : null;
-}
-
 const STYLE_LABEL: Record<string, string> = {
   show_face_voice: "Show mặt & giọng",
   ugc_style:       "UGC & Style",
@@ -71,19 +62,26 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
   const [showComment, setShowComment] = useState(false);
   const [note, setNote]               = useState(app.review_note ?? "");
   const [isPending, startTransition]  = useTransition();
+  const [error, setError]             = useState<string | null>(null);
 
   const isAgencyApproved = app.agency_status === "approved";
+  // The RPC blocks any client review once the agency has acted (approved OR
+  // rejected), so the card must be locked in both cases — not just approved.
+  const isAgencyLocked = app.agency_status != null;
 
-  const animFollower = useCountUp(app.follower_count);
-  const animGmv      = useCountUp(app.gmv_30d);
+  const animFollower = useCountUp(app.follower_count ?? 0);
+  const animGmv      = useCountUp(app.gmv_30d ?? 0);
 
   function handleReview(newStatus: "approved" | "rejected") {
-    if (isAgencyApproved) return;
+    if (isAgencyLocked) return;
+    setError(null);
     startTransition(async () => {
       const result = await submitApplicationReview(reviewToken, app.id, newStatus, note || undefined);
       if (result.success) {
         setStatus(newStatus);
         onStatusChange(app.id, newStatus, note);
+      } else {
+        setError(result.error);
       }
     });
   }
@@ -116,7 +114,7 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="flex-1 min-w-0">
             {(() => {
-              const url = channelUrl(app);
+              const url = tiktokChannelUrl(app);
               return url ? (
                 <a
                   href={url}
@@ -142,7 +140,13 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
               Agency duyệt
             </span>
           )}
-          {!isAgencyApproved && status !== "pending" && (
+          {isAgencyLocked && !isAgencyApproved && (
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 border text-red-600 bg-red-50 border-red-200 flex items-center gap-0.5">
+              <ShieldCheck className="h-3 w-3" />
+              Agency từ chối
+            </span>
+          )}
+          {!isAgencyLocked && status !== "pending" && (
             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 border ${
               status === "approved"
                 ? "text-emerald-700 bg-emerald-50 border-emerald-200"
@@ -166,15 +170,17 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
         </div>
 
         {/* Style tag */}
-        <div className="mt-2.5">
-          <span className="text-[10px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
-            {STYLE_LABEL[app.video_style] ?? app.video_style}
-          </span>
-        </div>
+        {app.video_style && (
+          <div className="mt-2.5">
+            <span className="text-[10px] font-medium text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
+              {STYLE_LABEL[app.video_style] ?? app.video_style}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Comment */}
-      {!isAgencyApproved && (showComment || status === "rejected") && (
+      {!isAgencyLocked && (showComment || status === "rejected") && (
         <div className="px-4 pb-3">
           <Textarea
             rows={2}
@@ -187,15 +193,17 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
       )}
 
       {/* Action bar */}
-      {isAgencyApproved ? (
+      {isAgencyLocked ? (
         <div className="px-4 py-2.5 flex items-center justify-center gap-2 border-t border-zinc-100 bg-blue-50/30">
           <ShieldCheck className="h-3.5 w-3.5 text-blue-500" />
           <span className="text-xs text-blue-600 font-medium">
-            Agency đã duyệt — không thể thay đổi
+            Agency đã xử lý — không thể thay đổi
           </span>
         </div>
       ) : (
-        <div className="px-4 py-2.5 flex items-center justify-between gap-2 border-t border-zinc-100 bg-zinc-50/50">
+        <div className="px-4 py-2.5 flex flex-col gap-2 border-t border-zinc-100 bg-zinc-50/50">
+          {error && <p className="text-[11px] text-red-600">{error}</p>}
+          <div className="flex items-center justify-between gap-2">
           <button
             onClick={() => setShowComment((v) => !v)}
             className="text-xs text-zinc-400 hover:text-zinc-600 flex items-center gap-1 transition-colors"
@@ -229,6 +237,7 @@ function KocCard({ app, reviewToken, onStatusChange, index }: KocCardProps) {
               <Check className="h-3 w-3" />
               Duyệt
             </button>
+          </div>
           </div>
         </div>
       )}
