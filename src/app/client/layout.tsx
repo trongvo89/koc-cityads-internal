@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import ClientSignOutButton from "@/components/client/sign-out-button";
 import CityAdsLogo from "@/components/ui/cityads-logo";
 import ClientNav from "@/components/client/client-nav";
+import { getClientMetrics } from "@/lib/actions/client-campaigns";
 
 export default async function ClientLayout({
   children,
@@ -29,6 +30,9 @@ export default async function ClientLayout({
   const companyName =
     (profile.clients as { company_name: string } | null)?.company_name ?? "";
 
+  const metrics = await getClientMetrics();
+  const pendingCount = metrics.success ? metrics.data.pending_approval : 0;
+
   return (
     <div className="flex h-screen overflow-hidden bg-zinc-50">
       {/* Sidebar — deep navy */}
@@ -41,7 +45,7 @@ export default async function ClientLayout({
           <CityAdsLogo subtitle={companyName || "Client Portal"} variant="dark" />
         </div>
 
-        <ClientNav />
+        <ClientNav pendingCount={pendingCount} />
 
         {/* User footer */}
         <div className="px-3 py-3 mt-auto" style={{ borderTop: "1px solid #162032" }}>

@@ -1108,7 +1108,7 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                               size="sm"
                               variant="outline"
                               className="h-7 text-xs"
-                              disabled={isPending || addingId === app.id || !app.koc_id || addedIds.has(app.id)}
+                              disabled={isPending || addingId === app.id || addedIds.has(app.id)}
                               onClick={() => handleAddOne(app.id)}
                             >
                               {addingId === app.id ? "..." : addedIds.has(app.id) ? "Đã thêm" : "Thêm vào campaign"}

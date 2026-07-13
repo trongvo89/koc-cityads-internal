@@ -17,7 +17,7 @@ const NAV_ITEMS = [
   },
 ];
 
-export default function ClientNav() {
+export default function ClientNav({ pendingCount = 0 }: { pendingCount?: number }) {
   const pathname = usePathname();
 
   return (
@@ -27,6 +27,7 @@ export default function ClientNav() {
           item.href === "/client/dashboard"
             ? pathname === "/client/dashboard"
             : pathname.startsWith(item.href);
+        const showBadge = item.href === "/client/campaigns" && pendingCount > 0;
 
         return (
           <Link
@@ -40,6 +41,11 @@ export default function ClientNav() {
           >
             <item.icon className="h-4 w-4 flex-shrink-0" />
             {item.label}
+            {showBadge && (
+              <span className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-red-500 text-white text-[11px] font-semibold">
+                {pendingCount > 99 ? "99+" : pendingCount}
+              </span>
+            )}
           </Link>
         );
       })}

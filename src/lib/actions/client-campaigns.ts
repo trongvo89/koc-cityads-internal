@@ -352,6 +352,32 @@ export async function approveKoc(
   return { success: true, data: undefined };
 }
 
+export async function bulkReviewKocs(
+  campaignId: string,
+  campaignKocIds: string[],
+  status: "approved" | "rejected",
+  note?: string
+): Promise<ActionResult<{ done: number; failed: number }>> {
+  const supabase = await createClient();
+
+  let done = 0;
+  let failed = 0;
+  // client_approve_koc enforces ownership per row, so a loop is safe.
+  for (const id of campaignKocIds) {
+    const { error } = await supabase.rpc("client_approve_koc", {
+      p_campaign_koc_id: id,
+      p_status: status,
+      ...(note ? { p_note: note } : {}),
+    });
+    if (error) failed++;
+    else done++;
+  }
+
+  revalidatePath(`/client/campaigns/${campaignId}`);
+  revalidatePath("/client/dashboard");
+  return { success: true, data: { done, failed } };
+}
+
 export async function submitVideoFeedback(
   campaignKocId: string,
   campaignId: string,

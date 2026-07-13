@@ -202,21 +202,40 @@ export async function addApplicationToCampaign(
   // Fetch the application with koc_id and approval status
   const { data: app, error: appError } = await supabase
     .from("koc_applications" as any)
-    .select("koc_id, status, agency_status")
+    .select("koc_id, status, agency_status, tiktok_name, tiktok_handle, tiktok_url, follower_count, zalo_phone")
     .eq("id", applicationId)
     .single();
 
   if (appError || !app) return { success: false, error: "Không tìm thấy đơn đăng ký" };
 
-  const kocId = (app as any).koc_id;
-  if (!kocId) return { success: false, error: "KOC chưa được tạo trong hệ thống" };
+  // Ensure a KOC master row exists (URL-less registrations have none yet).
+  let kocId = (app as any).koc_id as string | null;
+  if (!kocId) {
+    const a = app as any;
+    const { data: kocRow, error: kocErr } = await supabase
+      .from("kocs")
+      .insert({
+        name: (a.tiktok_name?.trim() || a.tiktok_handle) ?? "?",
+        tiktok_url: a.tiktok_url?.trim() || null,
+        tiktok_handle: a.tiktok_handle ?? null,
+        phone: a.zalo_phone ?? null,
+        zalo: a.zalo_phone ?? null,
+        follower: a.follower_count ?? 0,
+        status: "active",
+      } as any)
+      .select("koc_id")
+      .single();
+    if (kocErr || !kocRow) return { success: false, error: kocErr?.message ?? "Không tạo được KOC" };
+    kocId = (kocRow as any).koc_id;
+    await supabase.from("koc_applications" as any).update({ koc_id: kocId } as any).eq("id", applicationId);
+  }
 
   // Check if already in campaign_kocs
   const { data: existing } = await supabase
     .from("campaign_kocs")
     .select("campaign_koc_id")
     .eq("campaign_id", campaignId)
-    .eq("koc_id", kocId)
+    .eq("koc_id", kocId!)
     .maybeSingle();
 
   if (existing) return { success: false, error: "KOC đã có trong campaign" };

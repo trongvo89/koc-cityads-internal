@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
   XCircle,
@@ -29,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   approveKoc,
   rateKoc,
+  bulkReviewKocs,
 } from "@/lib/actions/client-campaigns";
 import type { ClientKocRow } from "@/lib/actions/client-campaigns";
 import { normalizeUrl } from "@/lib/utils/url";
@@ -433,9 +435,15 @@ function RatingSection({
 function KocCard({
   koc,
   campaignId,
+  selectable = false,
+  selected = false,
+  onToggleSelect,
 }: {
   koc: ClientKocRow;
   campaignId: string;
+  selectable?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }) {
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectNote, setRejectNote] = useState("");
@@ -503,6 +511,14 @@ function KocCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
+            {selectable && (
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={() => onToggleSelect?.(koc.campaign_koc_id)}
+                className="h-4 w-4 rounded border-zinc-300 accent-blue-600 cursor-pointer"
+              />
+            )}
             <span className="font-semibold text-zinc-900">{koc.koc_name}</span>
             {isApproved && (
               <Badge variant="success" className="text-xs">
@@ -713,36 +729,65 @@ function KocSection({
   kocs,
   campaignId,
   defaultOpen = true,
+  selectable = false,
+  selectedIds,
+  onToggleSelect,
+  onToggleAll,
 }: {
   title: string;
   kocs: ClientKocRow[];
   campaignId: string;
   defaultOpen?: boolean;
+  selectable?: boolean;
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
+  onToggleAll?: (ids: string[], checked: boolean) => void;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
   if (kocs.length === 0) return null;
 
+  const allIds = kocs.map((k) => k.campaign_koc_id);
+  const allSelected = selectable && allIds.every((id) => selectedIds?.has(id));
+
   return (
     <div>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 w-full text-left mb-3 group"
-      >
-        <span className="text-sm font-semibold text-zinc-700 uppercase tracking-wide">
-          {title}
-        </span>
-        <span className="text-xs text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded-full">
-          {kocs.length}
-        </span>
-        <span className="ml-auto text-zinc-400 group-hover:text-zinc-600">
-          {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </span>
-      </button>
+      <div className="flex items-center gap-2 w-full mb-3">
+        {selectable && (
+          <input
+            type="checkbox"
+            checked={!!allSelected}
+            onChange={(e) => onToggleAll?.(allIds, e.target.checked)}
+            className="h-4 w-4 rounded border-zinc-300 accent-blue-600 cursor-pointer"
+            title="Chọn tất cả"
+          />
+        )}
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-2 flex-1 text-left group"
+        >
+          <span className="text-sm font-semibold text-zinc-700 uppercase tracking-wide">
+            {title}
+          </span>
+          <span className="text-xs text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded-full">
+            {kocs.length}
+          </span>
+          <span className="ml-auto text-zinc-400 group-hover:text-zinc-600">
+            {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </span>
+        </button>
+      </div>
       {open && (
         <div className="space-y-3">
           {kocs.map((koc) => (
-            <KocCard key={koc.campaign_koc_id} koc={koc} campaignId={campaignId} />
+            <KocCard
+              key={koc.campaign_koc_id}
+              koc={koc}
+              campaignId={campaignId}
+              selectable={selectable}
+              selected={selectedIds?.has(koc.campaign_koc_id)}
+              onToggleSelect={onToggleSelect}
+            />
           ))}
         </div>
       )}
@@ -762,10 +807,47 @@ export default function KocApprovalBoard({
   kocs: ClientKocRow[];
   campaignId: string;
 }) {
+  const router = useRouter();
   const [sortKey, setSortKey] = useState<BoardSortKey>(null);
   const [sortDir, setSortDir] = useState<BoardSortDir>("desc");
   const [minFollower, setMinFollower] = useState("");
   const [minViews, setMinViews] = useState("");
+
+  // Bulk selection (pending KOCs only)
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkPending, startBulk] = useTransition();
+  const [showBulkReject, setShowBulkReject] = useState(false);
+  const [bulkNote, setBulkNote] = useState("");
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function toggleAll(ids: string[], checked: boolean) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => (checked ? next.add(id) : next.delete(id)));
+      return next;
+    });
+  }
+  function clearSelection() {
+    setSelected(new Set());
+    setShowBulkReject(false);
+    setBulkNote("");
+  }
+  function runBulk(status: "approved" | "rejected") {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    startBulk(async () => {
+      await bulkReviewKocs(campaignId, ids, status, status === "rejected" ? bulkNote || undefined : undefined);
+      clearSelection();
+      router.refresh();
+    });
+  }
 
   function toggleSort(key: Exclude<BoardSortKey, null>) {
     if (sortKey === key) {
@@ -937,6 +1019,10 @@ export default function KocApprovalBoard({
                   kocs={pending}
                   campaignId={campaignId}
                   defaultOpen={true}
+                  selectable
+                  selectedIds={selected}
+                  onToggleSelect={toggleSelect}
+                  onToggleAll={toggleAll}
                 />
               </div>
             </div>
@@ -956,6 +1042,62 @@ export default function KocApprovalBoard({
             defaultOpen={false}
           />
         </>
+      )}
+
+      {/* Sticky bulk action bar */}
+      {selected.size > 0 && (
+        <div className="sticky bottom-4 z-20">
+          <div className="mx-auto max-w-2xl bg-white border border-zinc-300 rounded-xl shadow-lg p-3 space-y-2">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-sm font-medium text-zinc-700">
+                Đã chọn {selected.size} KOC
+              </span>
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  size="sm"
+                  onClick={() => runBulk("approved")}
+                  disabled={bulkPending}
+                  className="gap-1.5"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Duyệt {selected.size}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowBulkReject((v) => !v)}
+                  disabled={bulkPending}
+                  className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Từ chối {selected.size}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={clearSelection} disabled={bulkPending}>
+                  Bỏ chọn
+                </Button>
+              </div>
+            </div>
+            {showBulkReject && (
+              <div className="flex items-center gap-2">
+                <Textarea
+                  rows={1}
+                  placeholder="Lý do từ chối (không bắt buộc)..."
+                  value={bulkNote}
+                  onChange={(e) => setBulkNote(e.target.value)}
+                  className="text-sm resize-none flex-1"
+                />
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  onClick={() => runBulk("rejected")}
+                  disabled={bulkPending}
+                >
+                  {bulkPending ? "Đang xử lý..." : "Xác nhận từ chối"}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
