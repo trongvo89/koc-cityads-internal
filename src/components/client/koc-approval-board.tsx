@@ -847,6 +847,7 @@ export default function KocApprovalBoard({
   const [sortDir, setSortDir] = useState<BoardSortDir>("desc");
   const [minFollower, setMinFollower] = useState("");
   const [minViews, setMinViews] = useState("");
+  const [minGmv, setMinGmv] = useState("");
 
   // Bulk selection (pending KOCs only)
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -893,11 +894,12 @@ export default function KocApprovalBoard({
     }
   }
 
-  const hasActiveFilters = !!minFollower || !!minViews || sortKey !== null;
+  const hasActiveFilters = !!minFollower || !!minViews || !!minGmv || sortKey !== null;
 
   function clearFilters() {
     setMinFollower("");
     setMinViews("");
+    setMinGmv("");
     setSortKey(null);
     setSortDir("desc");
   }
@@ -913,6 +915,10 @@ export default function KocApprovalBoard({
     if (minViews && !isNaN(minV)) {
       list = list.filter((k) => (k.video_views ?? 0) >= minV);
     }
+    const minG = Number(minGmv);
+    if (minGmv && !isNaN(minG)) {
+      list = list.filter((k) => (k.gmv_30d ?? 0) >= minG);
+    }
 
     if (sortKey) {
       const dir = sortDir === "desc" ? -1 : 1;
@@ -922,13 +928,13 @@ export default function KocApprovalBoard({
           : sortKey === "views"
           ? k.video_views ?? 0
           : sortKey === "gmv"
-          ? k.video_gmv ?? 0
+          ? k.gmv_30d ?? 0
           : k.client_quality_rating ?? 0;
       list.sort((a, b) => (pick(a) - pick(b)) * dir);
     }
 
     return list;
-  }, [kocs, minFollower, minViews, sortKey, sortDir]);
+  }, [kocs, minFollower, minViews, minGmv, sortKey, sortDir]);
 
   const pending = filteredKocs.filter((k) => k.client_approval_status === "pending");
   const approved = filteredKocs.filter((k) => k.client_approval_status === "approved");
@@ -1016,6 +1022,19 @@ export default function KocApprovalBoard({
               onChange={(e) => setMinViews(e.target.value)}
               placeholder="VD: 50000"
               className="h-8 w-28 rounded-lg border border-zinc-200 px-2.5 text-xs focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-zinc-400">GMV 30d tối thiểu</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={minGmv}
+              onChange={(e) => setMinGmv(e.target.value)}
+              placeholder="VD: 5000000"
+              className="h-8 w-32 rounded-lg border border-zinc-200 px-2.5 text-xs focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-200"
             />
           </div>
 
