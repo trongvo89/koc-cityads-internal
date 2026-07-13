@@ -23,6 +23,7 @@ import {
   ArrowUp,
   ArrowDown,
   SlidersHorizontal,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +32,7 @@ import {
   approveKoc,
   rateKoc,
   bulkReviewKocs,
+  resetKocReview,
 } from "@/lib/actions/client-campaigns";
 import type { ClientKocRow } from "@/lib/actions/client-campaigns";
 import { normalizeUrl, tiktokChannelUrl } from "@/lib/utils/url";
@@ -445,6 +447,7 @@ function KocCard({
   selected?: boolean;
   onToggleSelect?: (id: string) => void;
 }) {
+  const router = useRouter();
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectNote, setRejectNote] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -454,6 +457,22 @@ function KocCard({
   const isPending_ = localStatus === "pending";
   const isApproved = localStatus === "approved";
   const isRejected = localStatus === "rejected";
+  // Can undo an approve/reject decision while the KOC hasn't started production.
+  const canUndo =
+    (isApproved || isRejected) && !hasVideo(koc) && !koc.sample_sent_at;
+
+  function handleReset() {
+    setError(null);
+    startTransition(async () => {
+      const result = await resetKocReview(koc.campaign_koc_id, campaignId);
+      if (result.success) {
+        setLocalStatus("pending");
+        router.refresh();
+      } else {
+        setError(result.error);
+      }
+    });
+  }
 
   function handleApprove() {
     setError(null);
@@ -536,6 +555,17 @@ function KocCard({
               <Badge variant="warning" className="text-xs">
                 Chờ duyệt
               </Badge>
+            )}
+            {canUndo && (
+              <button
+                type="button"
+                onClick={handleReset}
+                disabled={isPending}
+                className="inline-flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-800 border border-zinc-200 rounded-full px-2 py-0.5 transition-colors disabled:opacity-50"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Hoàn tác
+              </button>
             )}
           </div>
 

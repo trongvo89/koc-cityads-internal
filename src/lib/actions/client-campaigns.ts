@@ -356,6 +356,23 @@ export async function approveKoc(
   return { success: true, data: undefined };
 }
 
+export async function resetKocReview(
+  campaignKocId: string,
+  campaignId: string
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).rpc("client_reset_koc_review", {
+    p_campaign_koc_id: campaignKocId,
+  });
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/client/campaigns/${campaignId}`);
+  revalidatePath("/client/dashboard");
+  return { success: true, data: undefined };
+}
+
 export async function bulkReviewKocs(
   campaignId: string,
   campaignKocIds: string[],
