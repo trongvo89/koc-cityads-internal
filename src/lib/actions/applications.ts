@@ -526,25 +526,35 @@ export async function adminAddKocApplication(
 
   let kocId = data.koc_id ?? null;
   if (!kocId && data.tiktok_url.trim()) {
-    const { data: kocRow, error: kocErr } = await supabase
+    const url = data.tiktok_url.trim();
+    // kocs.tiktok_url has only a PARTIAL unique index (WHERE tiktok_url IS NOT
+    // NULL), which PostgREST's ON CONFLICT can't infer → find-or-insert instead.
+    const { data: found } = await supabase
       .from("kocs")
-      .upsert(
-        {
+      .select("koc_id")
+      .eq("tiktok_url", url)
+      .maybeSingle();
+
+    if (found) {
+      kocId = found.koc_id;
+    } else {
+      const { data: kocRow, error: kocErr } = await supabase
+        .from("kocs")
+        .insert({
           name: data.tiktok_name.trim(),
           tiktok_handle: data.tiktok_handle.trim() || null,
-          tiktok_url: data.tiktok_url.trim(),
+          tiktok_url: url,
           phone: data.zalo_phone.trim() || null,
           zalo: data.zalo_phone.trim() || null,
           follower: data.follower_count || null,
           status: "active",
-        },
-        { onConflict: "tiktok_url" }
-      )
-      .select("koc_id")
-      .single();
+        } as any)
+        .select("koc_id")
+        .single();
 
-    if (kocErr) return { success: false, error: kocErr.message };
-    kocId = kocRow?.koc_id ?? null;
+      if (kocErr) return { success: false, error: kocErr.message };
+      kocId = kocRow?.koc_id ?? null;
+    }
   }
 
   const { error: insertErr } = await supabase
@@ -563,6 +573,26 @@ export async function adminAddKocApplication(
     } as any);
 
   if (insertErr) return { success: false, error: insertErr.message };
+
+  // Auto-add to the campaign (pending) so it shows in the client portal, like
+  // a registration does — if not already present.
+  if (kocId) {
+    const { data: existingCk } = await supabase
+      .from("campaign_kocs")
+      .select("campaign_koc_id")
+      .eq("campaign_id", campaignId)
+      .eq("koc_id", kocId)
+      .maybeSingle();
+
+    if (!existingCk) {
+      await supabase.from("campaign_kocs").insert({
+        campaign_id: campaignId,
+        koc_id: kocId,
+        client_approval_status: "pending",
+        operation_status: "in_progress",
+      } as any);
+    }
+  }
 
   revalidatePath(`/admin/campaigns/${campaignId}`);
   return { success: true, data: undefined };
