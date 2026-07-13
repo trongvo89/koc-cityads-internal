@@ -33,7 +33,7 @@ import {
   bulkReviewKocs,
 } from "@/lib/actions/client-campaigns";
 import type { ClientKocRow } from "@/lib/actions/client-campaigns";
-import { normalizeUrl } from "@/lib/utils/url";
+import { normalizeUrl, tiktokChannelUrl } from "@/lib/utils/url";
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
@@ -553,6 +553,11 @@ function KocCard({
                 followers
               </span>
             )}
+            {koc.gmv_30d != null && (
+              <span className="font-medium text-zinc-600">
+                GMV 30d: {formatMetric(koc.gmv_30d)}đ
+              </span>
+            )}
             {koc.location && (
               <span className="flex items-center gap-0.5">
                 <MapPin className="h-3 w-3" />
@@ -564,7 +569,7 @@ function KocCard({
           {/* Social links */}
           <div className="flex items-center gap-3 mt-1.5 flex-wrap">
             {[
-              { url: normalizeUrl(koc.tiktok_url), label: "TikTok" },
+              { url: tiktokChannelUrl({ tiktok_url: koc.tiktok_url, tiktok_handle: koc.tiktok_handle }), label: "TikTok" },
               { url: normalizeUrl(koc.instagram_url), label: "Instagram" },
               { url: normalizeUrl(koc.facebook_url), label: "Facebook" },
             ]

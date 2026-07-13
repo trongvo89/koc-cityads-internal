@@ -34,8 +34,10 @@ export type ClientKocRow = {
   koc_name: string;
   category: string[] | null;
   follower: number | null;
+  gmv_30d: number | null;
   location: string | null;
   tiktok_url: string | null;
+  tiktok_handle: string | null;
   instagram_url: string | null;
   facebook_url: string | null;
   content_status: ContentStatus | null;
@@ -241,8 +243,10 @@ export async function getClientCampaignDetail(
         koc_name: r.name ?? "?",
         category: r.category,
         follower: r.follower,
+        gmv_30d: r.gmv_30d != null ? Number(r.gmv_30d) : null,
         location: r.location,
         tiktok_url: r.tiktok_url,
+        tiktok_handle: r.tiktok_handle,
         instagram_url: r.instagram_url,
         facebook_url: r.facebook_url,
         content_status: r.content_status as ContentStatus | null,
