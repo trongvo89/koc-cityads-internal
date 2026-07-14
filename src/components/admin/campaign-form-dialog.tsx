@@ -34,6 +34,7 @@ const schema = z.object({
   start_date: z.string().optional().nullable(),
   end_date: z.string().optional().nullable(),
   status: z.enum(["draft", "active", "completed", "paused", "cancelled"]),
+  operation_mode: z.enum(["tiktok_seller", "external"]),
   ngay_chot_hd: z.string().nullable().optional(),
   assigned_to: z.string().uuid().nullable().optional(),
 });
@@ -60,11 +61,12 @@ export default function CampaignFormDialog({ open, campaign, staff, onClose }: P
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { status: "draft", package_size: 10 },
+    defaultValues: { status: "draft", operation_mode: "tiktok_seller", package_size: 10 },
   });
 
   const selectedStatus = watch("status");
   const selectedAssignedTo = watch("assigned_to");
+  const selectedMode = watch("operation_mode");
 
   useEffect(() => {
     if (campaign) {
@@ -76,6 +78,7 @@ export default function CampaignFormDialog({ open, campaign, staff, onClose }: P
         start_date: campaign.start_date ?? undefined,
         end_date: campaign.end_date ?? undefined,
         status: campaign.status,
+        operation_mode: campaign.operation_mode ?? "tiktok_seller",
         ngay_chot_hd: campaign.ngay_chot_hd ?? undefined,
         assigned_to: campaign.assigned_to ?? undefined,
       });
@@ -169,6 +172,24 @@ export default function CampaignFormDialog({ open, campaign, staff, onClose }: P
                 <SelectItem value="paused">Tạm dừng</SelectItem>
                 <SelectItem value="completed">Hoàn thành</SelectItem>
                 <SelectItem value="cancelled">Đã hủy</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Hình thức vận hành</Label>
+            <Select
+              value={selectedMode}
+              onValueChange={(v) =>
+                setValue("operation_mode", v as FormValues["operation_mode"], { shouldValidate: true })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="tiktok_seller">Qua TikTok Seller</SelectItem>
+                <SelectItem value="external">Ngoài TikTok (gửi hàng mẫu)</SelectItem>
               </SelectContent>
             </Select>
           </div>

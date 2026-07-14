@@ -913,18 +913,8 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
                   <Upload className="h-3 w-3 mr-1" />
                   Import từ TikTok
                 </Button>
-                {approvedCount > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleBulkAdd}
-                    disabled={isPending}
-                    className="text-xs h-7"
-                  >
-                    <Users className="h-3 w-3 mr-1" />
-                    Thêm {approvedCount} đã duyệt vào campaign
-                  </Button>
-                )}
+                {/* "Thêm đã duyệt vào campaign" removed — registrations/approvals
+                    now auto-add to the campaign, making the manual sync redundant. */}
                 <button
                   onClick={load}
                   disabled={isPending}

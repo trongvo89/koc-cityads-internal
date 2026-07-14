@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import {
   Plus, Trash2, ExternalLink, RefreshCw,
   Search, Send, Copy, Check, CheckCheck,
-  Pencil, ArrowUp, ArrowDown, Filter, X,
+  Pencil, ArrowUp, ArrowDown, Filter, X, Truck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { tiktokChannelUrl } from "@/lib/utils/url";
@@ -36,6 +36,7 @@ import {
   updateKocProfile,
   renewMagicLink,
   markAsReminded,
+  adminUpdateAddress,
 } from "@/lib/actions/campaigns";
 import type { CampaignDetail, CampaignKocRow } from "@/lib/actions/campaigns";
 import type { NotificationType, OperationStatus } from "@/lib/types/enums";
@@ -521,6 +522,220 @@ function FinalLinksCell({
   );
 }
 
+// ─── External-mode cells (address + sample shipping) ─────────────────────────
+
+function CellPopover({
+  trigger,
+  children,
+  open,
+  setOpen,
+}: {
+  trigger: React.ReactNode;
+  children: React.ReactNode;
+  open: boolean;
+  setOpen: (v: boolean) => void;
+}) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDown(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [open, setOpen]);
+
+  return (
+    <div className="relative" ref={wrapRef}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="w-full text-left text-xs px-1 py-1 rounded hover:bg-zinc-100 transition-colors min-h-[26px]"
+      >
+        {trigger}
+      </button>
+      {open && (
+        <div className="absolute z-30 top-full left-0 mt-1 w-64 bg-white border border-zinc-200 rounded-lg shadow-lg p-3 space-y-2">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddressCell({
+  koc,
+  campaignId,
+}: {
+  koc: CampaignKocRow;
+  campaignId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [form, setForm] = useState({
+    receiver_name: koc.receiver_name ?? "",
+    receiver_phone: koc.receiver_phone ?? "",
+    receiver_address: koc.receiver_address ?? "",
+    receiver_province: koc.receiver_province ?? "",
+  });
+
+  const hasAddress = koc.address_status === "submitted" && !!koc.receiver_address;
+
+  function handleSave() {
+    if (!form.receiver_name.trim() || !form.receiver_address.trim()) return;
+    startTransition(async () => {
+      await adminUpdateAddress(koc.campaign_koc_id, campaignId, {
+        receiver_name: form.receiver_name.trim(),
+        receiver_phone: form.receiver_phone.trim() || null,
+        receiver_address: form.receiver_address.trim(),
+        receiver_province: form.receiver_province.trim() || null,
+      });
+      setOpen(false);
+    });
+  }
+
+  return (
+    <CellPopover
+      open={open}
+      setOpen={setOpen}
+      trigger={
+        hasAddress ? (
+          <span className="inline-flex items-center gap-1 text-green-700">
+            <Check className="h-3 w-3" />
+            <span className="truncate">{koc.receiver_province || "Đã có"}</span>
+          </span>
+        ) : (
+          <span className="text-amber-600">Chờ địa chỉ</span>
+        )
+      }
+    >
+      <p className="text-xs font-medium text-zinc-600">Địa chỉ nhận hàng</p>
+      <Input
+        value={form.receiver_name}
+        onChange={(e) => setForm({ ...form, receiver_name: e.target.value })}
+        placeholder="Tên người nhận *"
+        className="h-7 text-xs"
+      />
+      <Input
+        value={form.receiver_phone}
+        onChange={(e) => setForm({ ...form, receiver_phone: e.target.value })}
+        placeholder="SĐT"
+        className="h-7 text-xs"
+      />
+      <Input
+        value={form.receiver_address}
+        onChange={(e) => setForm({ ...form, receiver_address: e.target.value })}
+        placeholder="Địa chỉ *"
+        className="h-7 text-xs"
+      />
+      <Input
+        value={form.receiver_province}
+        onChange={(e) => setForm({ ...form, receiver_province: e.target.value })}
+        placeholder="Tỉnh/Thành"
+        className="h-7 text-xs"
+      />
+      <div className="flex gap-2 pt-1">
+        <Button size="sm" onClick={handleSave} disabled={isPending} className="h-7 text-xs">
+          {isPending ? "Đang lưu..." : "Lưu"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)} disabled={isPending} className="h-7 text-xs">
+          Đóng
+        </Button>
+      </div>
+    </CellPopover>
+  );
+}
+
+const SAMPLE_LABEL: Record<string, { label: string; cls: string }> = {
+  waiting: { label: "Chưa gửi", cls: "text-zinc-400" },
+  sent: { label: "Đã gửi", cls: "text-blue-600" },
+  received: { label: "Đã nhận", cls: "text-green-700" },
+  not_received: { label: "Chưa nhận được", cls: "text-amber-600" },
+  issue: { label: "Sự cố", cls: "text-red-600" },
+};
+
+function SampleCell({
+  koc,
+  campaignId,
+}: {
+  koc: CampaignKocRow;
+  campaignId: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [code, setCode] = useState(koc.shipping_code ?? "");
+  const [provider, setProvider] = useState(koc.shipping_provider ?? "");
+
+  const st = SAMPLE_LABEL[koc.sample_status] ?? SAMPLE_LABEL.waiting;
+
+  function handleMarkSent() {
+    startTransition(async () => {
+      await updateCampaignKocStatus(koc.campaign_koc_id, campaignId, {
+        sample_status: "sent",
+        sample_sent_at: new Date().toISOString(),
+        shipping_code: code.trim() || null,
+        shipping_provider: provider.trim() || null,
+      });
+      setOpen(false);
+    });
+  }
+
+  function handleMarkReceived() {
+    startTransition(async () => {
+      await updateCampaignKocStatus(koc.campaign_koc_id, campaignId, {
+        sample_status: "received",
+        sample_received_at: new Date().toISOString(),
+      });
+      setOpen(false);
+    });
+  }
+
+  return (
+    <CellPopover
+      open={open}
+      setOpen={setOpen}
+      trigger={
+        <span className={`inline-flex items-center gap-1 ${st.cls}`}>
+          <Truck className="h-3 w-3" />
+          <span className="truncate">{st.label}</span>
+        </span>
+      }
+    >
+      <p className="text-xs font-medium text-zinc-600">Gửi hàng mẫu</p>
+      <Input
+        value={code}
+        onChange={(e) => setCode(e.target.value)}
+        placeholder="Mã vận đơn"
+        className="h-7 text-xs"
+      />
+      <Input
+        value={provider}
+        onChange={(e) => setProvider(e.target.value)}
+        placeholder="Đơn vị vận chuyển (GHN, GHTK...)"
+        className="h-7 text-xs"
+      />
+      <div className="flex flex-col gap-1.5 pt-1">
+        <Button size="sm" onClick={handleMarkSent} disabled={isPending} className="h-7 text-xs">
+          <Truck className="h-3 w-3 mr-1" />
+          Đã gửi hàng
+        </Button>
+        {koc.sample_status !== "received" && (
+          <Button size="sm" variant="outline" onClick={handleMarkReceived} disabled={isPending} className="h-7 text-xs">
+            <Check className="h-3 w-3 mr-1" />
+            KOC đã nhận hàng (nhập hộ)
+          </Button>
+        )}
+      </div>
+      {koc.sample_sent_at && (
+        <p className="text-[10px] text-zinc-400">
+          Gửi lúc: {new Date(koc.sample_sent_at).toLocaleString("vi-VN")}
+        </p>
+      )}
+    </CellPopover>
+  );
+}
+
 // ─── Edit KOC Dialog ─────────────────────────────────────────────────────────
 
 function EditKocDialog({
@@ -903,6 +1118,7 @@ export default function KocBoard({
   campaign: CampaignDetail;
   allKocs: KocItem[];
 }) {
+  const isExternal = campaign.operation_mode === "external";
   const [addOpen, setAddOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [isPending, startTransition] = useTransition();
@@ -1149,6 +1365,12 @@ export default function KocBoard({
                   <th className="px-2 py-2 text-left font-medium text-zinc-500 w-24">Link Kênh</th>
                   <SortableHeader label="Client" sortDir={sortKey === "client" ? sortDir : null} onSort={() => toggleSort("client")} className="w-24" />
                   <SortableHeader label="Trạng thái" sortDir={sortKey === "status" ? sortDir : null} onSort={() => toggleSort("status")} className="w-36" />
+                  {isExternal && (
+                    <>
+                      <th className="px-2 py-2 text-left font-medium text-zinc-500 w-28">Địa chỉ</th>
+                      <th className="px-2 py-2 text-left font-medium text-zinc-500 w-28">Hàng mẫu</th>
+                    </>
+                  )}
                   <SortableHeader label="Video" sortDir={sortKey === "video" ? sortDir : null} onSort={() => toggleSort("video")} className="w-14" />
                   <SortableHeader label="SL Video" sortDir={sortKey === "video_count" ? sortDir : null} onSort={() => toggleSort("video_count")} className="w-16" />
                   <th className="px-2 py-2 text-left font-medium text-zinc-500 w-32">Link Final</th>
@@ -1198,6 +1420,12 @@ export default function KocBoard({
                       </select>
                     </td>
                     <td className="px-2 py-1" />
+                    {isExternal && (
+                      <>
+                        <td className="px-2 py-1" />
+                        <td className="px-2 py-1" />
+                      </>
+                    )}
                     <td className="px-2 py-1">
                       <select
                         value={fVideo}
@@ -1312,6 +1540,18 @@ export default function KocBoard({
                           ))}
                         </select>
                       </td>
+
+                      {/* External mode: address + sample shipping */}
+                      {isExternal && (
+                        <>
+                          <td className="px-2 py-2">
+                            <AddressCell koc={koc} campaignId={campaign.campaign_id} />
+                          </td>
+                          <td className="px-2 py-2">
+                            <SampleCell koc={koc} campaignId={campaign.campaign_id} />
+                          </td>
+                        </>
+                      )}
 
                       {/* Video checkbox */}
                       <td className="px-2 py-2 text-center">

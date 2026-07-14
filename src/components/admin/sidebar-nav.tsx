@@ -9,17 +9,16 @@ import {
   Building2,
   UserCog,
   BarChart3,
-  FileText,
   Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { UserRole } from "@/lib/types/enums";
 
+// Proposals is intentionally not in the nav (module kept, reachable via URL).
 const NAV_ITEMS = [
   { href: "/admin/dashboard",  label: "Dashboard",    icon: LayoutDashboard },
   { href: "/admin/campaigns",  label: "Campaigns",    icon: Megaphone },
   { href: "/admin/kocs",       label: "KOCs",         icon: Users },
-  { href: "/admin/proposals",  label: "Proposals",    icon: FileText },
   { href: "/admin/clients",    label: "Clients",      icon: Building2 },
   { href: "/admin/livestream", label: "AI Livestream", icon: Radio },
 ];

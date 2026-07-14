@@ -18,6 +18,10 @@ export type KocTokenData = {
   content_status: ContentStatus;
   deadline_date: string | null;
   revision_note: string | null;
+  operation_mode: "tiktok_seller" | "external";
+  shipping_code: string | null;
+  shipping_provider: string | null;
+  receiver_name: string | null;
 };
 
 type ActionResult<T = void> =

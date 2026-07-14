@@ -25,6 +25,7 @@ export type CampaignListItem = {
   created_at: string;
   ngay_chot_hd: string | null;
   assigned_to: string | null;
+  operation_mode: "tiktok_seller" | "external";
 };
 
 export type CampaignKocRow = {
@@ -45,6 +46,9 @@ export type CampaignKocRow = {
   receiver_phone: string | null;
   receiver_address: string | null;
   receiver_province: string | null;
+  shipping_code: string | null;
+  shipping_provider: string | null;
+  sample_sent_at: string | null;
   video_url: string | null;
   internal_note: string | null;
   revision_note: string | null;
@@ -69,6 +73,7 @@ export type CampaignDetail = {
   brief: string | null;
   status: CampaignStatus;
   source: "manual" | "from_proposal";
+  operation_mode: "tiktok_seller" | "external";
   package_size: number;
   contract_value: number;
   deposit_paid_at: string | null;
@@ -111,7 +116,7 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
 
   const { data, error } = await (supabase
     .from("campaigns")
-    .select("campaign_id, campaign_name, brief, status, package_size, contract_value, deposit_paid_at, final_paid_at, start_date, end_date, created_at, ngay_chot_hd, assigned_to, clients(company_name), campaign_kocs(count)")
+    .select("campaign_id, campaign_name, brief, status, operation_mode, package_size, contract_value, deposit_paid_at, final_paid_at, start_date, end_date, created_at, ngay_chot_hd, assigned_to, clients(company_name), campaign_kocs(count)")
     .order("created_at", { ascending: false }) as any) as { data: any[]; error: any };
 
   if (error) return { success: false, error: error.message };
@@ -134,6 +139,7 @@ export async function getCampaigns(): Promise<ActionResult<CampaignListItem[]>> 
       created_at: c.created_at,
       ngay_chot_hd: c.ngay_chot_hd ?? null,
       assigned_to: c.assigned_to ?? null,
+      operation_mode: (c.operation_mode as "tiktok_seller" | "external") ?? "tiktok_seller",
     })),
   };
 }
@@ -145,7 +151,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: campaign, error: ce } = await (supabase
     .from("campaigns")
     .select(
-      "campaign_id, campaign_name, client_id, brief, status, source, package_size, contract_value, deposit_paid_at, deposit_amount, deposit_invoice, final_paid_at, final_amount, final_invoice, start_date, end_date, clients(company_name)"
+      "campaign_id, campaign_name, client_id, brief, status, source, operation_mode, package_size, contract_value, deposit_paid_at, deposit_amount, deposit_invoice, final_paid_at, final_amount, final_invoice, start_date, end_date, clients(company_name)"
     )
     .eq("campaign_id", id)
     .single() as any) as { data: any; error: any };
@@ -155,7 +161,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
   const { data: kocs, error: ke } = await supabase
     .from("campaign_kocs")
     .select(
-      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, video_url, internal_note, revision_note, deadline_date, client_video_feedback, client_video_feedback_at, client_quality_rating, video_count, final_link, note_2, row_color, kocs(name, category, phone, zalo, tiktok_handle, tiktok_url, follower)"
+      "campaign_koc_id, koc_id, operation_status, address_status, sample_status, content_status, client_approval_status, magic_link_token, magic_link_expires_at, receiver_name, receiver_phone, receiver_address, receiver_province, shipping_code, shipping_provider, sample_sent_at, video_url, internal_note, revision_note, deadline_date, client_video_feedback, client_video_feedback_at, client_quality_rating, video_count, final_link, note_2, row_color, kocs(name, category, phone, zalo, tiktok_handle, tiktok_url, follower)"
     )
     .eq("campaign_id", id)
     .order("created_at", { ascending: true });
@@ -172,6 +178,7 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
       brief: campaign.brief,
       status: campaign.status,
       source: (campaign.source as "manual" | "from_proposal") ?? "manual",
+      operation_mode: (campaign.operation_mode as "tiktok_seller" | "external") ?? "tiktok_seller",
       package_size: campaign.package_size,
       contract_value: campaign.contract_value ?? 0,
       deposit_paid_at: campaign.deposit_paid_at ?? null,
@@ -205,6 +212,9 @@ export async function getCampaignDetail(id: string): Promise<ActionResult<Campai
         receiver_phone: k.receiver_phone,
         receiver_address: k.receiver_address,
         receiver_province: k.receiver_province,
+        shipping_code: k.shipping_code ?? null,
+        shipping_provider: k.shipping_provider ?? null,
+        sample_sent_at: k.sample_sent_at ?? null,
         video_url: k.video_url,
         internal_note: k.internal_note,
         revision_note: k.revision_note,
@@ -297,6 +307,7 @@ const CampaignSchema = z.object({
   start_date: z.string().nullable().optional(),
   end_date: z.string().nullable().optional(),
   status: z.enum(["draft", "active", "completed", "paused", "cancelled"]),
+  operation_mode: z.enum(["tiktok_seller", "external"]).optional(),
   ngay_chot_hd: z.string().min(1, "Ngày chốt HĐ không được trống").nullable().optional(),
   assigned_to: z.string().uuid("Vui lòng chọn nhân viên").nullable().optional(),
 });
@@ -469,6 +480,7 @@ export async function updateCampaignKocStatus(
     shipping_code?: string | null;
     shipping_provider?: string | null;
     sample_sent_at?: string | null;
+    sample_received_at?: string | null;
   }
 ): Promise<ActionResult> {
   const supabase = await createClient();
@@ -547,15 +559,6 @@ export async function adminUpdateAddress(
 ): Promise<ActionResult> {
   const supabase = await createClient();
 
-  const { data: current } = await supabase
-    .from("campaign_kocs")
-    .select("operation_status")
-    .eq("campaign_koc_id", campaignKocId)
-    .single();
-
-  const preAddressStatuses = new Set(["client_approved", "waiting_address"]);
-  const shouldAdvance = current && preAddressStatuses.has(current.operation_status);
-
   const { error } = await supabase
     .from("campaign_kocs")
     .update({
@@ -564,7 +567,6 @@ export async function adminUpdateAddress(
       receiver_address: data.receiver_address,
       receiver_province: data.receiver_province,
       address_status: "submitted",
-      ...(shouldAdvance && { operation_status: "address_submitted" }),
     })
     .eq("campaign_koc_id", campaignKocId);
 

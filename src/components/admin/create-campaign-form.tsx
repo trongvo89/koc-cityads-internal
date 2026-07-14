@@ -29,6 +29,7 @@ const schema = z.object({
   start_date: z.string().optional().nullable(),
   end_date: z.string().optional().nullable(),
   status: z.enum(["draft", "active", "completed", "paused", "cancelled"]),
+  operation_mode: z.enum(["tiktok_seller", "external"]),
   ngay_chot_hd: z.string().min(1, "Ngày chốt HĐ không được trống").nullable().optional(),
   assigned_to: z.string().uuid("Vui lòng chọn nhân viên").nullable().optional(),
 });
@@ -54,12 +55,13 @@ export default function CreateCampaignForm({
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { status: "draft", package_size: 10, contract_value: 0 },
+    defaultValues: { status: "draft", operation_mode: "tiktok_seller", package_size: 10, contract_value: 0 },
   });
 
   const selectedClientId = watch("client_id");
   const selectedStatus = watch("status");
   const selectedAssignedTo = watch("assigned_to");
+  const selectedMode = watch("operation_mode");
 
   function onSubmit(data: FormValues) {
     setServerError(null);
@@ -111,6 +113,27 @@ export default function CreateCampaignForm({
           {errors.client_id && (
             <p className="text-xs text-red-500">{errors.client_id.message}</p>
           )}
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Hình thức vận hành *</Label>
+          <Select
+            value={selectedMode}
+            onValueChange={(v) =>
+              setValue("operation_mode", v as "tiktok_seller" | "external", { shouldValidate: true })
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="tiktok_seller">Qua TikTok Seller</SelectItem>
+              <SelectItem value="external">Ngoài TikTok (gửi hàng mẫu)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-zinc-400">
+            Ngoài TikTok: theo dõi địa chỉ, gửi hàng mẫu, KOC xác nhận nhận hàng.
+          </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
