@@ -4,8 +4,9 @@ import { useState, useTransition, useEffect, useCallback, useRef } from "react";
 import {
   Link2, Copy, Check, ChevronDown, ChevronUp, Users, ExternalLink,
   ToggleLeft, ToggleRight, RefreshCw, Pencil, ShieldCheck, X, Clock,
-  Plus, Search, Upload,
+  Plus, Search, Upload, FileSpreadsheet,
 } from "lucide-react";
+import { exportToExcel, slugifyFilename, todayStamp } from "@/lib/utils/export-xlsx";
 import KocBulkCampaignImportDialog from "@/components/admin/koc-bulk-campaign-import-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +91,12 @@ const STATUS_VARIANT = {
 const STYLE_LABEL = {
   show_face_voice: "Show mặt & giọng",
   ugc_style: "UGC & Style",
+} as const;
+
+const AGENCY_LABEL = {
+  approved: "Đã duyệt",
+  rejected: "Từ chối",
+  shortlisted: "Cân nhắc",
 } as const;
 
 // ─── Row color palette ──────────────────────────────────────────────────────
@@ -688,6 +695,30 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
     if (!BUILTIN_KEYS.has(f.key)) customFieldLabels[f.key] = f.label || f.key;
   }
 
+  function handleExport() {
+    const rows = filteredApps.map((app) => {
+      const row: Record<string, unknown> = {
+        "Tên TikTok": app.tiktok_name,
+        "Handle": app.tiktok_handle,
+        "Link kênh": app.tiktok_url,
+        "Followers": app.follower_count,
+        "GMV 30 ngày": app.gmv_30d,
+        "SĐT Zalo": app.zalo_phone,
+        "Phong cách video": STYLE_LABEL[app.video_style as keyof typeof STYLE_LABEL] ?? app.video_style,
+        "Trạng thái (khách)": STATUS_LABEL[app.status],
+        "Trạng thái (agency)": app.agency_status ? AGENCY_LABEL[app.agency_status] : "—",
+        "Ngày đăng ký": new Date(app.applied_at).toLocaleDateString("vi-VN"),
+        "Ghi chú duyệt": app.review_note ?? "",
+      };
+      for (const key of customFieldKeys) {
+        row[customFieldLabels[key] ?? key] = app.custom_data?.[key] != null ? String(app.custom_data[key]) : "";
+      }
+      return row;
+    });
+    const slug = slugifyFilename(regData?.campaign_name ?? "campaign");
+    exportToExcel(`${slug}-dang-ky-${todayStamp()}.xlsx`, "Đăng ký", rows);
+  }
+
   return (
     <div className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
       <button
@@ -895,6 +926,18 @@ export default function CampaignRegistrationPanel({ campaignId }: Props) {
               </p>
               <div className="flex items-center gap-2">
                 {bulkMsg && <span className="text-xs text-zinc-600">{bulkMsg}</span>}
+                {filteredApps.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleExport}
+                    className="text-xs h-7"
+                    title="Xuất danh sách đang hiển thị ra Excel"
+                  >
+                    <FileSpreadsheet className="h-3 w-3 mr-1" />
+                    Xuất Excel
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="outline"

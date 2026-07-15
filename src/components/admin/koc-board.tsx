@@ -4,10 +4,11 @@ import { useState, useTransition, useMemo, useEffect, useRef } from "react";
 import {
   Plus, Trash2, ExternalLink, RefreshCw,
   Search, Send, Copy, Check, CheckCheck,
-  Pencil, ArrowUp, ArrowDown, Filter, X, Truck,
+  Pencil, ArrowUp, ArrowDown, Filter, X, Truck, FileSpreadsheet,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { tiktokChannelUrl } from "@/lib/utils/url";
+import { exportToExcel, slugifyFilename, todayStamp } from "@/lib/utils/export-xlsx";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -1287,6 +1288,38 @@ export default function KocBoard({
     setFLinkFinal("");
   }
 
+  function handleExport() {
+    const rows = processedKocs.map((k) => {
+      const row: Record<string, unknown> = {
+        "Tên KOC": k.koc_name,
+        "Ngành hàng": k.koc_category?.join(", ") ?? "",
+        "SĐT": k.koc_phone ?? "",
+        "Zalo": k.koc_zalo ?? "",
+        "TikTok handle": k.koc_tiktok_handle ?? "",
+        "Followers": k.koc_follower ?? "",
+        "Trạng thái vận hành": statusLabel(getSimple(k.operation_status)),
+      };
+      if (isExternal) {
+        row["Trạng thái địa chỉ"] = k.address_status === "submitted" ? "Đã có địa chỉ" : "Chờ địa chỉ";
+        row["Trạng thái hàng mẫu"] = SAMPLE_LABEL[k.sample_status]?.label ?? k.sample_status;
+        row["Mã vận đơn"] = k.shipping_code ?? "";
+        row["Đơn vị vận chuyển"] = k.shipping_provider ?? "";
+        row["Người nhận"] = k.receiver_name ?? "";
+        row["SĐT người nhận"] = k.receiver_phone ?? "";
+        row["Địa chỉ nhận"] = [k.receiver_address, k.receiver_province].filter(Boolean).join(", ");
+      }
+      row["Trạng thái duyệt KH"] = CLIENT_STATUS[k.client_approval_status]?.label ?? k.client_approval_status;
+      row["Video URL"] = k.video_url ?? "";
+      row["Số lượng video"] = k.video_count;
+      row["Link final"] = (k.final_link ?? []).join(", ");
+      row["Ghi chú"] = k.internal_note ?? "";
+      row["Deadline"] = k.deadline_date ? new Date(k.deadline_date).toLocaleDateString("vi-VN") : "";
+      return row;
+    });
+    const slug = slugifyFilename(campaign.campaign_name);
+    exportToExcel(`${slug}-board-${todayStamp()}.xlsx`, "Board", rows);
+  }
+
   return (
     <div>
       {/* Toolbar */}
@@ -1332,6 +1365,18 @@ export default function KocBoard({
           {hasActiveFilters && (
             <Button size="sm" variant="ghost" onClick={clearAllFilters} className="gap-1 text-zinc-500">
               <X className="h-3.5 w-3.5" /> Xoá lọc
+            </Button>
+          )}
+          {processedKocs.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleExport}
+              className="gap-1.5"
+              title="Xuất danh sách đang hiển thị ra Excel"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              Xuất Excel
             </Button>
           )}
           <Button size="sm" onClick={() => setAddOpen(true)} disabled={availableKocs.length === 0 || isPending}>
