@@ -17,6 +17,19 @@ export async function proxy(request: NextRequest) {
     return res;
   }
 
+  // Forward the role proxy already resolved to downstream layouts via a
+  // request header, so admin/client layouts trust this single source of
+  // truth instead of re-querying the DB and potentially disagreeing with
+  // proxy — that disagreement is what caused the admin<->client redirect
+  // loop (each layout redirected into the other with no escape hatch).
+  function withRole(role: UserRole | null) {
+    const headers = new Headers(request.headers);
+    headers.set("x-koc-role", role ?? "");
+    const res = NextResponse.next({ request: { headers } });
+    supabaseResponse.cookies.getAll().forEach((c) => res.cookies.set(c));
+    return res;
+  }
+
   // Resolve role from the DB — the single source of truth, matching what the
   // page layouts check. A cached cookie could go stale (e.g. switching accounts
   // on the same browser) and disagree with the layout, causing a redirect loop.
@@ -64,8 +77,12 @@ export async function proxy(request: NextRequest) {
     const role = await getRole();
     if (!role) return redirectTo("/login");
 
+    // Wrong portal for this role: send to /login rather than the other
+    // portal. /login either forwards the user to where they actually
+    // belong or renders the login form — it never redirects back here, so
+    // this can't form a cycle even if role resolution is ever inconsistent.
     if (pathname.startsWith("/admin/") && !ADMIN_ROLES.includes(role))
-      return redirectTo("/client/dashboard");
+      return redirectTo("/login");
 
     if (pathname.startsWith("/admin/reports") && role !== "super_admin")
       return redirectTo("/admin/dashboard");
@@ -78,7 +95,9 @@ export async function proxy(request: NextRequest) {
       return redirectTo("/admin/dashboard");
 
     if (pathname.startsWith("/client/") && role !== "client")
-      return redirectTo("/admin/dashboard");
+      return redirectTo("/login");
+
+    return withRole(role);
   }
 
   return supabaseResponse;

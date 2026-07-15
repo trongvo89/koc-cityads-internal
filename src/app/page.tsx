@@ -1,18 +1,12 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { headers } from "next/headers";
 
+// proxy.ts already redirects "/" before this ever renders — this is just a
+// safety net. Reads the role proxy resolved instead of re-querying, so this
+// can never disagree with proxy and cause a redirect loop.
 export default async function RootPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-
-  if (profile?.role === "client") redirect("/client/dashboard");
-  redirect("/admin/dashboard");
+  const roleHeader = (await headers()).get("x-koc-role");
+  if (roleHeader === "client") redirect("/client/dashboard");
+  if (roleHeader) redirect("/admin/dashboard");
+  redirect("/login");
 }

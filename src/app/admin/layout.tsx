@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import SidebarNav from "@/components/admin/sidebar-nav";
 import SignOutButton from "@/components/admin/sign-out-button";
@@ -21,15 +22,23 @@ export default async function AdminLayout({
 
   if (!user) redirect("/login");
 
+  // Role comes from proxy — the single source of truth (see src/proxy.ts).
+  // Trusting proxy's decision instead of re-querying here avoids the two
+  // ever disagreeing, which previously caused an infinite admin<->client
+  // redirect loop. On mismatch/missing header, bail to /login (never to
+  // /client/dashboard) so there's no cycle.
+  const roleHeader = (await headers()).get("x-koc-role") as UserRole | null;
+  if (!roleHeader || !ALLOWED_ROLES.includes(roleHeader)) {
+    redirect("/login");
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("role, full_name")
     .eq("id", user.id)
     .single();
 
-  if (!profile || !ALLOWED_ROLES.includes(profile.role)) {
-    redirect("/client/dashboard");
-  }
+  if (!profile) redirect("/login");
 
   const notifications = await getAdminNotifications();
 

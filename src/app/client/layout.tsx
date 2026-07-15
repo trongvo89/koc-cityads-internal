@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import ClientSignOutButton from "@/components/client/sign-out-button";
 import CityAdsLogo from "@/components/ui/cityads-logo";
@@ -17,15 +18,23 @@ export default async function ClientLayout({
 
   if (!user) redirect("/login");
 
+  // Role comes from proxy — the single source of truth (see src/proxy.ts).
+  // Trusting proxy's decision instead of re-querying here avoids the two
+  // ever disagreeing, which previously caused an infinite admin<->client
+  // redirect loop. On mismatch/missing header, bail to /login (never to
+  // /admin/dashboard) so there's no cycle.
+  const roleHeader = (await headers()).get("x-koc-role");
+  if (roleHeader !== "client") {
+    redirect("/login");
+  }
+
   const { data: profile } = await supabase
     .from("profiles")
     .select("role, full_name, client_id, clients(company_name)")
     .eq("id", user.id)
     .single();
 
-  if (!profile || profile.role !== "client") {
-    redirect("/admin/dashboard");
-  }
+  if (!profile) redirect("/login");
 
   const companyName =
     (profile.clients as { company_name: string } | null)?.company_name ?? "";

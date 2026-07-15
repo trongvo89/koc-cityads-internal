@@ -26,11 +26,13 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // getSession() reads from the cookie JWT without a network round-trip.
-  // RLS on all server actions/components provides the actual security guarantee.
+  // getUser() revalidates the JWT against the Supabase Auth server. Do not
+  // swap this for getSession() — that reads the cookie locally without
+  // verifying it, which can disagree with the getUser() calls layouts make,
+  // causing the two to fight over where to redirect (infinite loop).
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return { supabaseResponse, user: session?.user ?? null, supabase };
+  return { supabaseResponse, user, supabase };
 }
