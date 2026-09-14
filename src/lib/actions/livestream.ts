@@ -50,7 +50,16 @@ export type ScriptListItem = {
 export type ScriptDetail = ScriptListItem & {
   brief: string | null;
   voice_id: string | null;
+  render_mode: "avatar" | "image_voice";
   script_sections: ScriptSection[];
+};
+
+// One product row imported from the brand's Google Sheet (parsed client-side).
+export type SheetProductRow = {
+  product_name: string;
+  script: string;
+  shopee_item_id?: string | null;
+  product_url?: string | null;
 };
 
 export type SessionListItem = {
@@ -315,7 +324,7 @@ export async function getScriptDetail(script_id: string): Promise<ActionResult<S
   const { data, error } = await (supabase
     .from("live_scripts")
     .select(
-      "script_id, title, product_id, host_id, duration_minutes, status, ai_generated, brief, voice_id, script_sections, created_at, product_knowledge(name), ai_hosts(name)"
+      "script_id, title, product_id, host_id, duration_minutes, status, ai_generated, brief, voice_id, render_mode, script_sections, created_at, product_knowledge(name), ai_hosts(name)"
     )
     .eq("script_id", script_id)
     .single() as any);
@@ -337,6 +346,7 @@ export async function getScriptDetail(script_id: string): Promise<ActionResult<S
       ai_generated: s.ai_generated as boolean,
       brief: s.brief as string | null,
       voice_id: s.voice_id as string | null,
+      render_mode: (s.render_mode as "avatar" | "image_voice" | null) ?? "avatar",
       script_sections: (s.script_sections as ScriptSection[]) ?? [],
       created_at: s.created_at as string,
     },
@@ -349,6 +359,7 @@ const scriptSchema = z.object({
   host_id: z.string().uuid().optional().nullable(),
   brief: z.string().optional(),
   duration_minutes: z.number().int().min(1).optional(),
+  render_mode: z.enum(["avatar", "image_voice"]).optional(),
 });
 
 export async function createScript(
@@ -360,7 +371,9 @@ export async function createScript(
   const supabase = await createClient();
   const { data: row, error } = await supabase
     .from("live_scripts")
-    .insert(parsed.data)
+    // render_mode is a drifted column not yet in generated types.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .insert(parsed.data as any)
     .select("script_id")
     .single();
 
@@ -376,7 +389,8 @@ export async function updateScript(
   const supabase = await createClient();
   const { error } = await supabase
     .from("live_scripts")
-    .update(data)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update(data as any)
     .eq("script_id", script_id);
 
   if (error) return { success: false, error: error.message };
@@ -405,6 +419,77 @@ export async function deleteScript(script_id: string): Promise<ActionResult> {
   const { error } = await supabase.from("live_scripts").delete().eq("script_id", script_id);
   if (error) return { success: false, error: error.message };
   revalidatePath("/admin/livestream/scripts");
+  return { success: true, data: undefined };
+}
+
+/**
+ * Create an "image_voice" script from products pasted out of the brand's
+ * Google Sheet. Each product becomes one section carrying its ready-made
+ * voice-over script; the per-product image is attached later (upload) via
+ * setSectionImageUrl. Rows are parsed client-side into SheetProductRow[].
+ */
+export async function importProductsFromSheet(
+  title: string,
+  rows: SheetProductRow[]
+): Promise<ActionResult<{ script_id: string }>> {
+  if (!title.trim()) return { success: false, error: "Tiêu đề không được để trống" };
+
+  const valid = rows.filter((r) => r.product_name?.trim() && r.script?.trim());
+  if (valid.length === 0) {
+    return { success: false, error: "Không có sản phẩm hợp lệ (cần Tên SP + Kịch bản)." };
+  }
+
+  const sections: ScriptSection[] = valid.map((r) => ({
+    section_type: "product_intro",
+    content: r.script.trim(),
+    // Rough estimate (~15 Vietnamese chars/sec) for display only — the worker
+    // uses the real TTS audio length when building each segment.
+    duration_seconds: Math.max(15, Math.round(r.script.trim().length / 15)),
+    product_name: r.product_name.trim(),
+    shopee_item_id: r.shopee_item_id?.trim() || null,
+    image_url: null,
+    audio_url: null,
+  }));
+
+  const supabase = await createClient();
+  const { data: row, error } = await supabase
+    .from("live_scripts")
+    // render_mode + sections carry image_voice fields; cast for the drifted schema.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .insert({ title: title.trim(), render_mode: "image_voice", script_sections: sections } as any)
+    .select("script_id")
+    .single();
+
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/livestream/scripts");
+  return { success: true, data: { script_id: (row as { script_id: string }).script_id } };
+}
+
+/** Attach (or clear) the per-product image on one image_voice section. */
+export async function setSectionImageUrl(
+  script_id: string,
+  section_index: number,
+  image_url: string | null
+): Promise<ActionResult> {
+  const supabase = await createClient();
+  const { data: scriptRow, error: fetchErr } = await supabase
+    .from("live_scripts")
+    .select("script_sections")
+    .eq("script_id", script_id)
+    .single();
+  if (fetchErr) return { success: false, error: fetchErr.message };
+
+  const sections = (scriptRow.script_sections as ScriptSection[]) ?? [];
+  if (!sections[section_index]) return { success: false, error: "Section không tồn tại" };
+  sections[section_index] = { ...sections[section_index], image_url };
+
+  const { error: updateErr } = await supabase
+    .from("live_scripts")
+    .update({ script_sections: sections })
+    .eq("script_id", script_id);
+  if (updateErr) return { success: false, error: updateErr.message };
+
+  revalidatePath(`/admin/livestream/scripts/${script_id}`);
   return { success: true, data: undefined };
 }
 

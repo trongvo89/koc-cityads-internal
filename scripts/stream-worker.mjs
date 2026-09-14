@@ -82,6 +82,39 @@ async function downloadFile(url, dest) {
   return dest;
 }
 
+// Run ffmpeg to completion, rejecting on non-zero exit.
+function runFfmpeg(args, label = "ffmpeg") {
+  return new Promise((resolve, reject) => {
+    const p = spawn("ffmpeg", args, { stdio: ["ignore", "ignore", "pipe"] });
+    let err = "";
+    p.stderr.on("data", (d) => { err += d.toString(); });
+    p.on("close", (code) =>
+      code === 0 ? resolve() : reject(new Error(`${label} exit ${code}: ${err.slice(-300)}`))
+    );
+    p.on("error", reject);
+  });
+}
+
+// image_voice mode: compose one 1080x1920 segment from a still image + TTS
+// audio, lasting exactly as long as the audio. Normalizes codec/params so the
+// segments concat cleanly afterwards.
+function buildImageVoiceSegment(imagePath, audioPath, outPath) {
+  return runFfmpeg(
+    [
+      "-y",
+      "-loop", "1", "-i", imagePath,
+      "-i", audioPath,
+      "-vf",
+      "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=black,format=yuv420p",
+      "-c:v", "libx264", "-preset", "veryfast", "-tune", "stillimage", "-r", "30",
+      "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
+      "-shortest",
+      outPath,
+    ],
+    "segment"
+  );
+}
+
 async function startStream(sessionId) {
   console.log(`[${WORKER_ID}] Preparing stream for session ${sessionId}`);
 
@@ -92,34 +125,64 @@ async function startStream(sessionId) {
     return;
   }
 
-  const { video_urls, rtmp_url, stream_key, loop } = config;
-
-  if (!video_urls || video_urls.length === 0) {
-    await reportStatus(sessionId, "error", "Kịch bản chưa có video. Tạo video trước khi stream.");
-    return;
-  }
+  const { render_mode, video_urls, segments, rtmp_url, stream_key, loop } = config;
 
   if (!rtmp_url || !stream_key) {
     await reportStatus(sessionId, "error", "Thiếu RTMP URL hoặc Stream Key");
     return;
   }
 
-  // Download videos to temp dir
   const workDir = join(tmpdir(), `stream-${sessionId}`);
   if (!existsSync(workDir)) mkdirSync(workDir, { recursive: true });
 
-  console.log(`[${WORKER_ID}] Downloading ${video_urls.length} videos...`);
   const localFiles = [];
-  for (let i = 0; i < video_urls.length; i++) {
-    const dest = join(workDir, `section_${i}.mp4`);
-    try {
-      await downloadFile(video_urls[i], dest);
-      localFiles.push(dest);
-      console.log(`  ✓ Section ${i + 1}/${video_urls.length}`);
-    } catch (err) {
-      console.error(`  ✗ Section ${i + 1}: ${err.message}`);
-      await reportStatus(sessionId, "error", `Download lỗi section ${i + 1}: ${err.message}`);
+
+  if (render_mode === "image_voice") {
+    // Build each product segment on the fly from image + TTS audio.
+    if (!segments || segments.length === 0) {
+      await reportStatus(sessionId, "error", "Chưa có ảnh + giọng đọc. Up ảnh và tạo giọng đọc trước khi stream.");
       return;
+    }
+    console.log(`[${WORKER_ID}] Building ${segments.length} image+voice segments...`);
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i];
+      if (!seg.image_url || !seg.audio_url) {
+        await reportStatus(sessionId, "error", `Sản phẩm ${i + 1} thiếu ảnh hoặc giọng đọc.`);
+        return;
+      }
+      const imgPath = join(workDir, `img_${i}`);
+      const audPath = join(workDir, `aud_${i}.mp3`);
+      const outPath = join(workDir, `section_${i}.mp4`);
+      try {
+        await downloadFile(seg.image_url, imgPath);
+        await downloadFile(seg.audio_url, audPath);
+        await buildImageVoiceSegment(imgPath, audPath, outPath);
+        localFiles.push(outPath);
+        console.log(`  ✓ Segment ${i + 1}/${segments.length}${seg.product_name ? ` (${seg.product_name})` : ""}`);
+      } catch (err) {
+        console.error(`  ✗ Segment ${i + 1}: ${err.message}`);
+        await reportStatus(sessionId, "error", `Dựng segment ${i + 1} lỗi: ${err.message}`);
+        return;
+      }
+    }
+  } else {
+    // avatar mode: pre-rendered section videos (HeyGen), downloaded as-is.
+    if (!video_urls || video_urls.length === 0) {
+      await reportStatus(sessionId, "error", "Kịch bản chưa có video. Tạo video trước khi stream.");
+      return;
+    }
+    console.log(`[${WORKER_ID}] Downloading ${video_urls.length} videos...`);
+    for (let i = 0; i < video_urls.length; i++) {
+      const dest = join(workDir, `section_${i}.mp4`);
+      try {
+        await downloadFile(video_urls[i], dest);
+        localFiles.push(dest);
+        console.log(`  ✓ Section ${i + 1}/${video_urls.length}`);
+      } catch (err) {
+        console.error(`  ✗ Section ${i + 1}: ${err.message}`);
+        await reportStatus(sessionId, "error", `Download lỗi section ${i + 1}: ${err.message}`);
+        return;
+      }
     }
   }
 

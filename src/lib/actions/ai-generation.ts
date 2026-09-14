@@ -24,6 +24,11 @@ export type ScriptSection = {
   audio_url?: string | null;
   video_url?: string | null;
   heygen_video_id?: string | null;
+  // "image_voice" render mode (per-product image + TTS voice-over). The image
+  // is user-supplied (uploaded or a URL); the tool never generates it.
+  image_url?: string | null;
+  product_name?: string | null;
+  shopee_item_id?: string | null;
 };
 
 export async function generateHostPersona(
