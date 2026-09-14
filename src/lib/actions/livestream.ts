@@ -465,6 +465,28 @@ export async function importProductsFromSheet(
   return { success: true, data: { script_id: (row as { script_id: string }).script_id } };
 }
 
+/**
+ * Step 1 of a product-image upload: a signed URL the client PUTs the file to
+ * directly (bypasses the server body limit), plus the public URL to store.
+ * Reuses the public `live-video` bucket (same as references/audio pattern).
+ */
+export async function prepareImageUpload(
+  filename: string
+): Promise<ActionResult<{ signedUrl: string; publicUrl: string }>> {
+  const serviceClient = await createServiceClient();
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "jpg";
+  const storagePath = `product-images/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (serviceClient.storage as any)
+    .from("live-video")
+    .createSignedUploadUrl(storagePath);
+  if (error) return { success: false, error: `Không thể tạo upload URL: ${error.message}` };
+
+  const { data: pub } = serviceClient.storage.from("live-video").getPublicUrl(storagePath);
+  return { success: true, data: { signedUrl: data.signedUrl as string, publicUrl: pub.publicUrl } };
+}
+
 /** Attach (or clear) the per-product image on one image_voice section. */
 export async function setSectionImageUrl(
   script_id: string,

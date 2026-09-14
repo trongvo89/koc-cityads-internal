@@ -4,6 +4,7 @@ import { getElevenLabsVoices } from "@/lib/actions/audio";
 import { getHeyGenAvatars } from "@/lib/actions/video";
 import { getReferences } from "@/lib/actions/references";
 import ScriptDetailClient from "@/components/admin/livestream/script-detail-client";
+import ImageVoiceEditor from "@/components/admin/livestream/image-voice-editor";
 
 export default async function ScriptDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -46,6 +47,12 @@ export default async function ScriptDetailPage({ params }: { params: Promise<{ i
     referencesResult.status === "fulfilled" && referencesResult.value.success
       ? referencesResult.value.data
       : [];
+
+  // "image_voice" scripts use a dedicated, simpler editor (per-product image
+  // upload + voice-over) instead of the avatar/HeyGen section workflow.
+  if (script.render_mode === "image_voice") {
+    return <ImageVoiceEditor script={script} voices={voices} />;
+  }
 
   return (
     <ScriptDetailClient

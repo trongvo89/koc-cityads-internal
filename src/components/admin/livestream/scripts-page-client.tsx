@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, FileText, ExternalLink } from "lucide-react";
+import { Plus, Trash2, FileText, ExternalLink, FileSpreadsheet } from "lucide-react";
+import SheetImportDialog from "./sheet-import-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ export default function ScriptsPageClient({ scripts: initial }: { scripts: Scrip
   const router = useRouter();
   const [scripts, setScripts] = useState(initial);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<ScriptListItem | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -80,11 +82,19 @@ export default function ScriptsPageClient({ scripts: initial }: { scripts: Scrip
           <h1 className="text-2xl font-bold text-zinc-900">Kịch bản live</h1>
           <p className="text-zinc-500 text-sm mt-0.5">{scripts.length} kịch bản</p>
         </div>
-        <Button size="sm" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4 mr-1.5" />
-          Tạo kịch bản
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+            <FileSpreadsheet className="h-4 w-4 mr-1.5" />
+            Import từ Sheet
+          </Button>
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Tạo kịch bản
+          </Button>
+        </div>
       </div>
+
+      <SheetImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
 
       {scripts.length === 0 ? (
         <div className="text-center py-16 text-zinc-400">
