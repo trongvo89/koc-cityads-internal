@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, ImagePlus, Mic, Loader2, CheckCircle, AlertTriangle, Save, RefreshCw,
+  Play, Pause,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,9 +58,24 @@ export default function ImageVoiceEditor({
   const [isSaving, startSave] = useTransition();
   const [isVoicing, startVoice] = useTransition();
   const fileInputs = useRef<(HTMLInputElement | null)[]>([]);
+  const previewRef = useRef<HTMLAudioElement | null>(null);
+  const [previewing, setPreviewing] = useState(false);
 
+  const selectedVoice = voices.find((v) => v.voice_id === voiceId);
   const voiceChanged =
     !!voiceId && voiceId !== generatedVoiceId && sections.some((s) => s.audio_url);
+
+  function togglePreview() {
+    const url = selectedVoice?.preview_url;
+    if (!url || !previewRef.current) return;
+    if (previewing) {
+      previewRef.current.pause();
+      setPreviewing(false);
+      return;
+    }
+    previewRef.current.src = url;
+    previewRef.current.play().then(() => setPreviewing(true)).catch(() => setPreviewing(false));
+  }
 
   const withImage = sections.filter((s) => s.image_url).length;
   const withAudio = sections.filter((s) => s.audio_url).length;
@@ -161,7 +177,13 @@ export default function ImageVoiceEditor({
             {voices.length > 0 ? (
               <div className="flex items-center gap-2">
                 <div className="flex-1">
-                  <Select value={voiceId} onValueChange={setVoiceId}>
+                  <Select
+                    value={voiceId}
+                    onValueChange={(v) => {
+                      if (previewRef.current) { previewRef.current.pause(); setPreviewing(false); }
+                      setVoiceId(v);
+                    }}
+                  >
                     <SelectTrigger><SelectValue placeholder="Chọn giọng đọc" /></SelectTrigger>
                     <SelectContent>
                       {voices.map((v) => (
@@ -170,9 +192,18 @@ export default function ImageVoiceEditor({
                     </SelectContent>
                   </Select>
                 </div>
+                <Button
+                  variant="outline" size="sm" onClick={togglePreview}
+                  disabled={!selectedVoice?.preview_url}
+                  title={selectedVoice?.preview_url ? "Nghe thử giọng đang chọn" : "Giọng này không có mẫu nghe thử"}
+                >
+                  {previewing ? <Pause className="h-4 w-4 mr-1" /> : <Play className="h-4 w-4 mr-1" />}
+                  Nghe thử
+                </Button>
                 <Button variant="ghost" size="sm" onClick={refreshVoices} title="Kéo lại danh sách giọng mới thêm ở ElevenLabs">
                   <RefreshCw className="h-4 w-4" />
                 </Button>
+                <audio ref={previewRef} onEnded={() => setPreviewing(false)} className="hidden" />
               </div>
             ) : (
               // Fallback: no voice list loaded → let the user paste a voice_id.
@@ -263,7 +294,9 @@ export default function ImageVoiceEditor({
                 className="h-24 text-xs"
               />
               {s.audio_url && (
-                <audio src={s.audio_url} controls className="mt-2 h-8 w-full" />
+                // key on the URL forces the element to remount & load the new
+                // file when audio is regenerated (else the browser keeps the old one).
+                <audio key={s.audio_url} src={s.audio_url} controls className="mt-2 h-8 w-full" />
               )}
             </div>
           </div>
