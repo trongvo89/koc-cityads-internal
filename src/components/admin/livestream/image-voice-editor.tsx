@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft, ImagePlus, Mic, Loader2, CheckCircle, AlertTriangle, Save, RefreshCw,
-  Play, Pause,
+  Play, Pause, X, SkipBack, SkipForward, Repeat, MonitorPlay,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -141,6 +141,43 @@ export default function ImageVoiceEditor({
     router.refresh();
   }
 
+  // ─── Preview player (browser-side "what the live will look like") ──────────
+  // Plays each product's image + voice in order, exactly like the broadcast.
+  const playable = sections.filter((s) => s.image_url && s.audio_url);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewIdx, setPreviewIdx] = useState(0);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const [previewLoop, setPreviewLoop] = useState(true);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const cur = playable[previewIdx];
+
+  function openPreview() {
+    if (playable.length === 0) return;
+    setPreviewIdx(0);
+    setPreviewOpen(true);
+  }
+  function closePreview() {
+    previewAudioRef.current?.pause();
+    setPreviewOpen(false);
+    setPreviewPlaying(false);
+  }
+  function previewGoto(i: number) {
+    if (i < 0) i = playable.length - 1;
+    if (i >= playable.length) i = 0;
+    setPreviewIdx(i);
+  }
+  function previewOnEnded() {
+    if (previewIdx + 1 < playable.length) setPreviewIdx(previewIdx + 1);
+    else if (previewLoop) setPreviewIdx(0);
+    else setPreviewPlaying(false);
+  }
+  function previewTogglePlay() {
+    const a = previewAudioRef.current;
+    if (!a) return;
+    if (a.paused) a.play().catch(() => {});
+    else a.pause();
+  }
+
   return (
     <div className="max-w-3xl">
       <Link href="/admin/livestream/scripts" className="inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-800 mb-4">
@@ -157,9 +194,19 @@ export default function ImageVoiceEditor({
             {sections.length} sản phẩm · {withImage} có ảnh · {withAudio} có giọng đọc
           </p>
         </div>
-        <Button size="sm" variant="outline" onClick={handleSaveScripts} disabled={isSaving}>
-          <Save className="h-4 w-4 mr-1.5" /> {isSaving ? "Đang lưu..." : "Lưu kịch bản"}
-        </Button>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <Button
+            size="sm"
+            onClick={openPreview}
+            disabled={playable.length === 0}
+            title={playable.length === 0 ? "Cần ít nhất 1 SP có đủ ảnh + giọng" : "Xem trước buổi live ngay trên web"}
+          >
+            <MonitorPlay className="h-4 w-4 mr-1.5" /> Xem trước buổi live
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleSaveScripts} disabled={isSaving}>
+            <Save className="h-4 w-4 mr-1.5" /> {isSaving ? "Đang lưu..." : "Lưu kịch bản"}
+          </Button>
+        </div>
       </div>
 
       {/* Compliance warning */}
@@ -323,6 +370,72 @@ export default function ImageVoiceEditor({
         Sau khi mỗi sản phẩm có đủ ảnh + giọng đọc: tạo/mở một buổi live (Session), gắn kịch bản này,
         dán RTMP key và bấm chạy — worker sẽ ghép ảnh + voice thành video và phát tuần tự rồi lặp lại.
       </p>
+
+      {/* Preview overlay — plays image + voice per product, like the live will look */}
+      {previewOpen && cur && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={closePreview}>
+          <div
+            className="bg-black rounded-xl overflow-hidden max-h-[92vh] w-full max-w-[430px] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 9:16 stage */}
+            <div className="relative bg-zinc-900" style={{ aspectRatio: "9 / 16" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={cur.image_url ?? ""} alt={cur.product_name ?? ""} className="w-full h-full object-cover" />
+              <button
+                onClick={closePreview}
+                className="absolute top-2 right-2 h-8 w-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70"
+                aria-label="Đóng"
+              >
+                <X className="h-4 w-4" />
+              </button>
+              {/* Product caption */}
+              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-3 pt-8">
+                <p className="text-white text-sm font-medium line-clamp-2">{cur.product_name ?? "Sản phẩm"}</p>
+                <p className="text-white/60 text-xs mt-0.5">Sản phẩm {previewIdx + 1}/{playable.length}</p>
+              </div>
+              {/* The audio that drives the sequence. key remounts + autoplays on index change. */}
+              <audio
+                key={previewIdx}
+                ref={previewAudioRef}
+                src={cur.audio_url ?? ""}
+                autoPlay
+                onEnded={previewOnEnded}
+                onPlay={() => setPreviewPlaying(true)}
+                onPause={() => setPreviewPlaying(false)}
+              />
+            </div>
+
+            {/* Controls */}
+            <div className="flex items-center justify-center gap-3 p-3 bg-zinc-950">
+              <button onClick={() => previewGoto(previewIdx - 1)} className="text-white/80 hover:text-white p-1" aria-label="Trước">
+                <SkipBack className="h-5 w-5" />
+              </button>
+              <button
+                onClick={previewTogglePlay}
+                className="h-11 w-11 rounded-full bg-white text-black flex items-center justify-center hover:bg-zinc-200"
+                aria-label={previewPlaying ? "Tạm dừng" : "Phát"}
+              >
+                {previewPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+              </button>
+              <button onClick={() => previewGoto(previewIdx + 1)} className="text-white/80 hover:text-white p-1" aria-label="Sau">
+                <SkipForward className="h-5 w-5" />
+              </button>
+              <button
+                onClick={() => setPreviewLoop((v) => !v)}
+                className={`p-1.5 rounded ${previewLoop ? "text-emerald-400" : "text-white/40"} hover:text-white`}
+                title={previewLoop ? "Đang bật lặp lại" : "Lặp lại tắt"}
+                aria-label="Lặp lại"
+              >
+                <Repeat className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-center text-[11px] text-white/40 pb-3 px-3">
+              Đây là bản xem trước trên web. Buổi live thật sẽ phát đúng chuỗi ảnh + giọng này lên phòng live.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
