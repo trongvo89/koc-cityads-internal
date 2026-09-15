@@ -267,9 +267,16 @@ async function poll() {
     return;
   }
 
-  // Look for sessions to stream — find "preparing" status
-  // The worker polls the specific session it's responsible for
-  // For now, we just wait for manual assignment via dashboard
+  // Idle: pick up any session the operator marked "preparing" and start it.
+  try {
+    const { pending } = await api("/api/stream/pending");
+    if (Array.isArray(pending) && pending.length > 0) {
+      await startStream(pending[0]);
+    }
+  } catch (err) {
+    // transient dashboard/network error — try again next tick
+    if (process.env.DEBUG) console.error(`poll error: ${err.message}`);
+  }
 }
 
 // Main loop
