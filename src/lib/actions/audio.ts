@@ -42,16 +42,30 @@ export async function getElevenLabsVoices(): Promise<ActionResult<ElevenLabsVoic
   return { success: true, data: voices };
 }
 
+// Default TTS model: Flash v2.5 supports Vietnamese (multilingual_v2 does NOT).
+// Not exported: this is a "use server" module (only async functions may be exported).
+const DEFAULT_TTS_MODEL = "eleven_flash_v2_5";
+
 export async function generateSectionAudio(
   script_id: string,
   section_index: number,
   content: string,
-  voice_id: string
+  voice_id: string,
+  model_id: string = DEFAULT_TTS_MODEL
 ): Promise<ActionResult<{ audio_url: string }>> {
   if (!process.env.ELEVENLABS_API_KEY) {
     return { success: false, error: "ELEVENLABS_API_KEY chưa được cấu hình" };
   }
   if (!content.trim()) return { success: false, error: "Nội dung section trống" };
+
+  // Flash/Turbo v2.5 accept language_code — force Vietnamese pronunciation.
+  const supportsLang = /flash_v2_5|turbo_v2_5/.test(model_id);
+  const payload: Record<string, unknown> = {
+    text: content,
+    model_id,
+    voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.3, use_speaker_boost: true },
+  };
+  if (supportsLang) payload.language_code = "vi";
 
   // Generate audio via ElevenLabs
   const ttsRes = await fetch(
@@ -63,11 +77,7 @@ export async function generateSectionAudio(
         "Content-Type": "application/json",
         "xi-api-key": process.env.ELEVENLABS_API_KEY,
       },
-      body: JSON.stringify({
-        text: content,
-        model_id: "eleven_multilingual_v2",
-        voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.3, use_speaker_boost: true },
-      }),
+      body: JSON.stringify(payload),
     }
   );
 
@@ -118,12 +128,13 @@ export async function generateSectionAudio(
 export async function generateAllSectionsAudio(
   script_id: string,
   sections: ScriptSection[],
-  voice_id: string
+  voice_id: string,
+  model_id: string = DEFAULT_TTS_MODEL
 ): Promise<ActionResult<{ results: { index: number; success: boolean; audio_url?: string; error?: string }[] }>> {
   const results: { index: number; success: boolean; audio_url?: string; error?: string }[] = [];
 
   for (let i = 0; i < sections.length; i++) {
-    const r = await generateSectionAudio(script_id, i, sections[i].content, voice_id);
+    const r = await generateSectionAudio(script_id, i, sections[i].content, voice_id, model_id);
     if (r.success) {
       results.push({ index: i, success: true, audio_url: r.data.audio_url });
     } else {

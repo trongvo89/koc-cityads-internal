@@ -49,6 +49,8 @@ export default function ImageVoiceEditor({
   const router = useRouter();
   const [sections, setSections] = useState<ScriptSection[]>(script.script_sections);
   const [voiceId, setVoiceId] = useState(script.voice_id ?? "");
+  // TTS model — Flash v2.5 supports Vietnamese (multilingual_v2 does not).
+  const [modelId, setModelId] = useState("eleven_flash_v2_5");
   // Voice the current audio was generated with (audio on load = script.voice_id).
   const [generatedVoiceId, setGeneratedVoiceId] = useState(script.voice_id ?? "");
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
@@ -117,7 +119,7 @@ export default function ImageVoiceEditor({
       // Persist any script edits first so TTS reads the latest text.
       await saveScriptSections(script.script_id, sections);
       await updateScriptVoice(script.script_id, voiceId);
-      const res = await generateAllSectionsAudio(script.script_id, sections, voiceId);
+      const res = await generateAllSectionsAudio(script.script_id, sections, voiceId, modelId);
       if (!res.success) { setErr(res.error); return; }
       const results = res.data.results;
       const ok = results.filter((r) => r.success);
@@ -219,6 +221,20 @@ export default function ImageVoiceEditor({
             Tạo giọng đọc tất cả
           </Button>
         </div>
+
+        <div className="mt-3 flex items-center gap-2">
+          <Label className="text-xs text-zinc-500 whitespace-nowrap">Model đọc</Label>
+          <div className="w-80">
+            <Select value={modelId} onValueChange={setModelId}>
+              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="eleven_flash_v2_5">Flash v2.5 — tiếng Việt (khuyến nghị)</SelectItem>
+                <SelectItem value="eleven_v3">v3 — chất lượng cao nhất (cần tài khoản hỗ trợ)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {voices.length === 0 && (
           <p className="text-xs text-amber-700 mt-2">
             Không tải được danh sách giọng ElevenLabs
