@@ -203,7 +203,12 @@ export default function ShopeeReviewPage() {
           <div className="border border-slate-700 bg-slate-900 p-5">
             <p className="text-sm font-semibold text-slate-200">Contact</p>
             <p className="mt-2 text-sm leading-6 text-slate-400">
-              KOC CityAds Team
+              <a
+                className="text-sky-300 underline-offset-4 hover:underline"
+                href="mailto:t.vo@cityads.team"
+              >
+                t.vo@cityads.team
+              </a>
               <br />
               Review URL: https://koc.cityads.vn/shopee-review
             </p>
