@@ -23,7 +23,11 @@ export async function getElevenLabsVoices(): Promise<ActionResult<ElevenLabsVoic
     next: { revalidate: 3600 },
   });
 
-  if (!res.ok) return { success: false, error: "Không thể lấy danh sách giọng ElevenLabs" };
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    // Surface the real reason (401 = sai key/thiếu quyền, 429 = hết quota, …)
+    return { success: false, error: `ElevenLabs lỗi ${res.status}: ${body.slice(0, 200) || res.statusText}` };
+  }
 
   const data = await res.json() as { voices: Record<string, unknown>[] };
   const voices: ElevenLabsVoice[] = (data.voices ?? []).map((v) => ({

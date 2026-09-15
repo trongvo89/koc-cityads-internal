@@ -39,6 +39,12 @@ export default async function ScriptDetailPage({ params }: { params: Promise<{ i
     voicesResult.status === "fulfilled" && voicesResult.value.success
       ? voicesResult.value.data
       : [];
+  const voicesError =
+    voicesResult.status === "fulfilled" && !voicesResult.value.success
+      ? voicesResult.value.error
+      : voicesResult.status === "rejected"
+        ? "Không gọi được ElevenLabs"
+        : null;
   const avatars =
     avatarsResult.status === "fulfilled" && avatarsResult.value.success
       ? avatarsResult.value.data
@@ -51,7 +57,7 @@ export default async function ScriptDetailPage({ params }: { params: Promise<{ i
   // "image_voice" scripts use a dedicated, simpler editor (per-product image
   // upload + voice-over) instead of the avatar/HeyGen section workflow.
   if (script.render_mode === "image_voice") {
-    return <ImageVoiceEditor script={script} voices={voices} />;
+    return <ImageVoiceEditor script={script} voices={voices} voicesError={voicesError} />;
   }
 
   return (

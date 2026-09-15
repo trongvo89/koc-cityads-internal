@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -37,9 +38,11 @@ function putToSignedUrl(signedUrl: string, file: File): Promise<void> {
 export default function ImageVoiceEditor({
   script,
   voices,
+  voicesError = null,
 }: {
   script: ScriptDetail;
   voices: ElevenLabsVoice[];
+  voicesError?: string | null;
 }) {
   const [sections, setSections] = useState<ScriptSection[]>(script.script_sections);
   const [voiceId, setVoiceId] = useState(script.voice_id ?? "");
@@ -134,22 +137,41 @@ export default function ImageVoiceEditor({
       </div>
 
       {/* Voice controls */}
-      <div className="flex items-end gap-2 bg-white border border-zinc-200 rounded-lg p-4 mb-4">
-        <div className="flex-1 space-y-1.5">
-          <Label>Giọng đọc (ElevenLabs)</Label>
-          <Select value={voiceId} onValueChange={setVoiceId}>
-            <SelectTrigger><SelectValue placeholder="Chọn giọng đọc" /></SelectTrigger>
-            <SelectContent>
-              {voices.map((v) => (
-                <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <div className="bg-white border border-zinc-200 rounded-lg p-4 mb-4">
+        <div className="flex items-end gap-2">
+          <div className="flex-1 space-y-1.5">
+            <Label>Giọng đọc (ElevenLabs)</Label>
+            {voices.length > 0 ? (
+              <Select value={voiceId} onValueChange={setVoiceId}>
+                <SelectTrigger><SelectValue placeholder="Chọn giọng đọc" /></SelectTrigger>
+                <SelectContent>
+                  {voices.map((v) => (
+                    <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              // Fallback: no voice list loaded → let the user paste a voice_id.
+              <Input
+                value={voiceId}
+                onChange={(e) => setVoiceId(e.target.value)}
+                placeholder="Dán Voice ID của ElevenLabs (vd: 21m00Tcm4TlvDq8ikWAM)"
+              />
+            )}
+          </div>
+          <Button onClick={handleGenerateAllAudio} disabled={isVoicing || sections.length === 0}>
+            {isVoicing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Mic className="h-4 w-4 mr-1.5" />}
+            Tạo giọng đọc tất cả
+          </Button>
         </div>
-        <Button onClick={handleGenerateAllAudio} disabled={isVoicing || sections.length === 0}>
-          {isVoicing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Mic className="h-4 w-4 mr-1.5" />}
-          Tạo giọng đọc tất cả
-        </Button>
+        {voices.length === 0 && (
+          <p className="text-xs text-amber-700 mt-2">
+            Không tải được danh sách giọng ElevenLabs
+            {voicesError ? <> — <span className="font-mono">{voicesError}</span></> : null}.
+            Kiểm tra biến <span className="font-mono">ELEVENLABS_API_KEY</span> (đúng tên, scope Production, key còn quota),
+            hoặc dán trực tiếp Voice ID để dùng tạm.
+          </p>
+        )}
       </div>
 
       {msg && <p className="text-sm text-emerald-700 mb-3">{msg}</p>}
