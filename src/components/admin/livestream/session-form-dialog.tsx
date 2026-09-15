@@ -77,9 +77,9 @@ export default function SessionFormDialog({ open, hosts, scripts, campaigns, onC
         title,
         platform: platform as "tiktok" | "shopee" | "lazada" | "facebook" | "youtube" | "other",
         scheduled_at: scheduledAt ? new Date(scheduledAt).toISOString() : null,
-        host_id: hostId || null,
-        script_id: scriptId || null,
-        campaign_id: campaignId || null,
+        host_id: hostId && hostId !== "none" ? hostId : null,
+        script_id: scriptId && scriptId !== "none" ? scriptId : null,
+        campaign_id: campaignId && campaignId !== "none" ? campaignId : null,
         rtmp_url: rtmpUrl || null,
         stream_key: streamKey || null,
         stream_link: streamLink || null,
@@ -144,7 +144,7 @@ export default function SessionFormDialog({ open, hosts, scripts, campaigns, onC
                   <SelectValue placeholder="Chọn host..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Không có</SelectItem>
+                  <SelectItem value="none">Không có</SelectItem>
                   {hosts.map((h) => (
                     <SelectItem key={h.host_id} value={h.host_id}>{h.name}</SelectItem>
                   ))}
@@ -158,7 +158,7 @@ export default function SessionFormDialog({ open, hosts, scripts, campaigns, onC
                   <SelectValue placeholder="Chọn kịch bản..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Không có</SelectItem>
+                  <SelectItem value="none">Không có</SelectItem>
                   {scripts.map((s) => (
                     <SelectItem key={s.script_id} value={s.script_id}>
                       {s.title}{s.status !== "approved" ? " (nháp)" : ""}
@@ -176,7 +176,7 @@ export default function SessionFormDialog({ open, hosts, scripts, campaigns, onC
                 <SelectValue placeholder="Liên kết campaign..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Không có</SelectItem>
+                <SelectItem value="none">Không có</SelectItem>
                 {campaigns.map((c) => (
                   <SelectItem key={c.campaign_id} value={c.campaign_id}>{c.campaign_name}</SelectItem>
                 ))}
