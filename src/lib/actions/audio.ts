@@ -20,7 +20,8 @@ export async function getElevenLabsVoices(): Promise<ActionResult<ElevenLabsVoic
 
   const res = await fetch("https://api.elevenlabs.io/v1/voices", {
     headers: { "xi-api-key": process.env.ELEVENLABS_API_KEY },
-    next: { revalidate: 3600 },
+    // No caching: newly added/cloned ElevenLabs voices must appear immediately.
+    cache: "no-store",
   });
 
   if (!res.ok) {

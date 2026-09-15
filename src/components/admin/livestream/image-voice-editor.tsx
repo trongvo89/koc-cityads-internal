@@ -2,8 +2,9 @@
 
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  ArrowLeft, ImagePlus, Mic, Loader2, CheckCircle, AlertTriangle, Save,
+  ArrowLeft, ImagePlus, Mic, Loader2, CheckCircle, AlertTriangle, Save, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -44,14 +45,21 @@ export default function ImageVoiceEditor({
   voices: ElevenLabsVoice[];
   voicesError?: string | null;
 }) {
+  const router = useRouter();
   const [sections, setSections] = useState<ScriptSection[]>(script.script_sections);
   const [voiceId, setVoiceId] = useState(script.voice_id ?? "");
+  // Voice the current audio was generated with (audio on load = script.voice_id).
+  const [generatedVoiceId, setGeneratedVoiceId] = useState(script.voice_id ?? "");
   const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [failList, setFailList] = useState<string[]>([]);
   const [isSaving, startSave] = useTransition();
   const [isVoicing, startVoice] = useTransition();
   const fileInputs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const voiceChanged =
+    !!voiceId && voiceId !== generatedVoiceId && sections.some((s) => s.audio_url);
 
   const withImage = sections.filter((s) => s.image_url).length;
   const withAudio = sections.filter((s) => s.audio_url).length;
@@ -87,23 +95,32 @@ export default function ImageVoiceEditor({
   }
 
   function handleGenerateAllAudio() {
-    if (!voiceId) { setErr("Chọn giọng đọc trước"); return; }
-    setErr(null); setMsg(null);
+    if (!voiceId) { setErr("Chọn hoặc dán Voice ID trước"); return; }
+    setErr(null); setMsg(null); setFailList([]);
     startVoice(async () => {
       // Persist any script edits first so TTS reads the latest text.
       await saveScriptSections(script.script_id, sections);
       await updateScriptVoice(script.script_id, voiceId);
       const res = await generateAllSectionsAudio(script.script_id, sections, voiceId);
       if (!res.success) { setErr(res.error); return; }
-      const ok = res.data.results.filter((r) => r.success);
+      const results = res.data.results;
+      const ok = results.filter((r) => r.success);
       setSections((prev) =>
         prev.map((s, i) => {
-          const r = res.data.results.find((x) => x.index === i);
+          const r = results.find((x) => x.index === i);
           return r?.success && r.audio_url ? { ...s, audio_url: r.audio_url } : s;
         })
       );
-      setMsg(`Đã tạo giọng đọc cho ${ok.length}/${res.data.results.length} sản phẩm`);
+      // Surface distinct failure reasons (e.g. "429 hết quota", voice lỗi).
+      const fails = results.filter((r) => !r.success);
+      setFailList([...new Set(fails.map((r) => r.error ?? "lỗi không rõ"))]);
+      if (ok.length === results.length && ok.length > 0) setGeneratedVoiceId(voiceId);
+      setMsg(`Đã tạo giọng đọc ${ok.length}/${results.length} sản phẩm${ok.length && fails.length === 0 ? " ✓ (giọng mới)" : ""}`);
     });
+  }
+
+  function refreshVoices() {
+    router.refresh();
   }
 
   return (
@@ -142,14 +159,21 @@ export default function ImageVoiceEditor({
           <div className="flex-1 space-y-1.5">
             <Label>Giọng đọc (ElevenLabs)</Label>
             {voices.length > 0 ? (
-              <Select value={voiceId} onValueChange={setVoiceId}>
-                <SelectTrigger><SelectValue placeholder="Chọn giọng đọc" /></SelectTrigger>
-                <SelectContent>
-                  {voices.map((v) => (
-                    <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <Select value={voiceId} onValueChange={setVoiceId}>
+                    <SelectTrigger><SelectValue placeholder="Chọn giọng đọc" /></SelectTrigger>
+                    <SelectContent>
+                      {voices.map((v) => (
+                        <SelectItem key={v.voice_id} value={v.voice_id}>{v.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button variant="ghost" size="sm" onClick={refreshVoices} title="Kéo lại danh sách giọng mới thêm ở ElevenLabs">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
             ) : (
               // Fallback: no voice list loaded → let the user paste a voice_id.
               <Input
@@ -172,9 +196,23 @@ export default function ImageVoiceEditor({
             hoặc dán trực tiếp Voice ID để dùng tạm.
           </p>
         )}
+        {voiceChanged && (
+          <p className="text-xs text-blue-700 mt-2">
+            Bạn vừa đổi giọng — audio hiện tại vẫn là giọng cũ. Bấm <strong>&quot;Tạo giọng đọc tất cả&quot;</strong> để áp dụng giọng mới.
+          </p>
+        )}
       </div>
 
       {msg && <p className="text-sm text-emerald-700 mb-3">{msg}</p>}
+      {failList.length > 0 && (
+        <div className="text-sm text-red-600 mb-3 space-y-0.5">
+          <p className="font-medium">Một số sản phẩm tạo giọng lỗi:</p>
+          {failList.map((f, i) => (
+            <p key={i} className="font-mono text-xs">• {f}</p>
+          ))}
+          <p className="text-xs text-red-500">Nếu là lỗi 401/quota → kiểm tra key/gói ElevenLabs. Sau khi xử lý, bấm tạo lại.</p>
+        </div>
+      )}
       {err && <p className="text-sm text-red-600 mb-3">{err}</p>}
 
       {/* Product sections */}
