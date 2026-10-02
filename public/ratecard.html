@@ -435,7 +435,7 @@
         <div class="card-head">
           <div class="card-name">Launch</div>
           <div class="card-price"><span class="was">14 triệu</span>12 triệu<span class="unit">/ tháng</span></div>
-          <div class="promo-tag">Giá ưu đãi đến 30/09</div>
+          <div class="promo-tag">Giá ưu đãi đến <span data-promo="end-short">31/10</span></div>
         </div>
         <div class="card-body">
           <div>
@@ -467,7 +467,7 @@
         <div class="card-head">
           <div class="card-name">Growth</div>
           <div class="card-price"><span class="was">23 triệu</span>21 triệu<span class="unit">/ tháng</span></div>
-          <div class="promo-tag">Giá ưu đãi đến 30/09</div>
+          <div class="promo-tag">Giá ưu đãi đến <span data-promo="end-short">31/10</span></div>
         </div>
         <div class="card-body">
           <div>
@@ -526,7 +526,7 @@
 
     <div class="note-strip promo">
       <span>🎁</span>
-      <span><strong>Ưu đãi tháng 8-9:</strong> Chốt gói Launch hoặc Growth trong thời gian khuyến mãi, giảm ngay 2 triệu trên giá gói. Áp dụng cho hợp đồng ký từ 01/08 đến hết 30/09/2026.</span>
+      <span><strong>Ưu đãi tháng <span data-promo="month">10</span>:</strong> Chốt gói Launch hoặc Growth trong thời gian khuyến mãi, giảm ngay 2 triệu trên giá gói. Áp dụng cho hợp đồng ký từ <span data-promo="start">01/10</span> đến hết <span data-promo="end-full">31/10/2026</span>.</span>
     </div>
 
     <div class="note-strip">
@@ -597,6 +597,35 @@
     </div>
   </div>
 </footer>
+
+<script>
+  // Monthly promo: the offer always runs to the last day of the current month
+  // (Vietnam time), so the dates roll over automatically each new month.
+  // The static text above is the fallback for no-JS clients / link previews.
+  (function () {
+    var parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit"
+    }).formatToParts(new Date());
+    var y = 0, m = 0;
+    parts.forEach(function (p) {
+      if (p.type === "year") y = Number(p.value);
+      if (p.type === "month") m = Number(p.value);
+    });
+    if (!y || !m) return;
+    var last = new Date(y, m, 0).getDate();
+    var mm = String(m).padStart(2, "0");
+    var values = {
+      "end-short": last + "/" + mm,
+      "month": String(m),
+      "start": "01/" + mm,
+      "end-full": last + "/" + mm + "/" + y
+    };
+    document.querySelectorAll("[data-promo]").forEach(function (el) {
+      var v = values[el.getAttribute("data-promo")];
+      if (v) el.textContent = v;
+    });
+  })();
+</script>
 
 </body>
 </html>
