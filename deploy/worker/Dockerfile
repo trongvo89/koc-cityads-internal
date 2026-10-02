@@ -1,4 +1,4 @@
-# Stream worker image — Node 20 + ffmpeg. Runs the AI Livestream worker that
+# Stream worker image — Node 24 + ffmpeg. Runs the AI Livestream worker that
 # assembles each session's video (image + voice-over) and pushes it to RTMP.
 #
 # The worker (scripts/stream-worker.mjs) is standalone: it only uses Node
@@ -7,7 +7,7 @@
 # Build context = repo root. On Railway/Render/Fly, set the Dockerfile path to
 # deploy/worker/Dockerfile and provide env: DASHBOARD_URL, STREAM_SECRET,
 # (optional) POLL_INTERVAL_MS, WORKER_ID.
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
